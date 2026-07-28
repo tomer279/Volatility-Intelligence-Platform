@@ -13,7 +13,7 @@ import typer
 from vip import __version__
 from vip.config import load_config
 from vip.orchestration import configure_logging
-from vip.cli.commands import ingest_command
+from vip.cli.commands import features_command, ingest_command
 
 app = typer.Typer(
     name="vip",
@@ -21,6 +21,7 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 ingest_command(app)
+features_command(app)
 
 @app.callback()
 def main(

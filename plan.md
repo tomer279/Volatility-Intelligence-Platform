@@ -385,7 +385,7 @@ Completed:
 - SPY Parquet persistence under `data/raw/`
 - Unit tests (network-free) and package docs
 
-### Milestone 2 — Features & targets
+### Milestone 2 — Features & targets - DONE (2026-07-28)
 - RV targets (multi-horizon) + HAR / return / range / volume features  
 - Feature registry + leakage unit tests (shift/alignment assertions)  
 **Exit:** feature matrix for SPY with documented column dictionary

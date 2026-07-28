@@ -23,8 +23,17 @@ def test_info_prints_defaults() -> None:
     assert "horizon_days: 5" in result.stdout
     assert "primary_metric: qlike" in result.stdout
 
+
 def test_ingest_help_exits_zero() -> None:
     """Ingest help should be available."""
     result = runner.invoke(app, ["ingest", "--help"])
     assert result.exit_code == 0
     assert "--symbol" in result.stdout
+
+
+def test_features_help_exits_zero() -> None:
+    """Features help should be available."""
+    result = runner.invoke(app, ["features", "--help"])
+    assert result.exit_code == 0
+    assert "--symbol" in result.stdout
+    assert "--horizon" in result.stdout

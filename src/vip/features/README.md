@@ -1,0 +1,52 @@
+# `vip.features`
+
+## Purpose
+Build predictive features and realized-volatility targets from canonical daily OHLCV data, with strict temporal alignment (no leakage).
+
+## Modules
+- `targets.py` - Forward realized-volatility labels.
+- `realized.py` - Trailing realized-vol helpers used by HAR features.
+- `returns.py` - Return-based features.
+- `har.py` - HAR-style trailing RV features.
+- `range_features.py` - High/low range features.
+- `volume_features.py` - Volume z-score features.
+- `registry.py` - Named feature-family registry and default Milestone 2 set.
+- `pipeline.py` - End-to-end feature-matrix builder.
+
+## Key APIs
+- `daily_log_returns(close)` - Daily log returns from close prices.
+- `build_target_rv_cc(ohlcv, horizon_days=5)` - Forward close-to-close RV target.
+- `realized_volatility_trailing(returns, window)` - Trailing RV ending at `t`.
+- `build_return_features(ohlcv)` - `ret_1d`, `ret_5d`.
+- `build_har_features(ohlcv)` - `rv_cc_1d`, `rv_cc_5d`, `rv_cc_21d`.
+- `build_range_features(ohlcv)` - `range_1d`, `range_5d_mean`.
+- `build_volume_features(ohlcv)` - `volume_z_21d`.
+- `create_default_registry()` - Registry with returns/har/range/volume.
+- `FeatureRegistry.build_all(ohlcv, names=None)` - Assemble selected feature families.
+- `build_feature_matrix(ohlcv, horizon_days=5, ...)` - Features + target, NaNs dropped.
+
+## Research contract
+- Features at session `t` use information with timestamp `<= t`.
+- Target at session `t` uses returns over `t+1 .. t+h` only.
+- Primary defaults: `h = 5`, close-to-close RV, column `target_rv_cc_5d`.
+- Target stored **non-annualized**.
+- Incomplete rows (NaN features/target) are dropped by `build_feature_matrix`.
+
+## Column dictionary
+
+| Column | Family | Definition |
+|--------|--------|------------|
+| `target_rv_cc_5d` | target | `sqrt(sum_{i=1..5} r_{t+i}^2)` where `r` is daily log return |
+| `ret_1d` | returns | `log(close_t / close_{t-1})` |
+| `ret_5d` | returns | `log(close_t / close_{t-5})` |
+| `rv_cc_1d` | har | Trailing 1d RV: `sqrt(r_t^2)` |
+| `rv_cc_5d` | har | Trailing 5d RV ending at `t` |
+| `rv_cc_21d` | har | Trailing 21d RV ending at `t` |
+| `range_1d` | range | `(high_t - low_t) / close_t` |
+| `range_5d_mean` | range | Mean of `range_1d` over last 5 sessions ending at `t` |
+| `volume_z_21d` | volume | `(volume_t - mean_21) / std_21` trailing window ending at `t` |
+
+## Notes
+- Source OHLCV should be valid daily bars; `build_feature_matrix` re-validates via ingestion validators.
+- HAR columns are **trailing** features; do not confuse them with the forward target `target_rv_cc_5d`.
+- Output path for persisted matrices (Milestone 2 later steps): `data/processed/{SYMBOL}/features.parquet`.

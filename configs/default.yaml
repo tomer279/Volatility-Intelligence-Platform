@@ -1,0 +1,23 @@
+symbol: SPY
+
+date_range:
+  start: "2015-01-01"
+  end: null
+
+paths:
+  raw_dir: data/raw
+  processed_dir: data/processed
+  artifacts_dir: data/artifacts
+
+target:
+  horizon_days: 5
+  rv_estimator: close_to_close
+
+evaluation:
+  primary_metric: qlike
+  secondary_metrics:
+    - mse
+    - mae
+
+logging:
+  level: INFO

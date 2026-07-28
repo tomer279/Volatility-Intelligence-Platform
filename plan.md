@@ -378,7 +378,6 @@ Completed:
 **Exit:** `pip install -e .` and empty CLI `vip --help`
 
 ### Milestone 1 — Data spine - DONE (2026-07-28)
-
 Completed:
 - yfinance adapter + OHLCV validators
 - ingest use-case + `vip ingest`
@@ -386,15 +385,16 @@ Completed:
 - Unit tests (network-free) and package docs
 
 ### Milestone 2 — Features & targets - DONE (2026-07-28)
+Completed:
 - RV targets (multi-horizon) + HAR / return / range / volume features  
 - Feature registry + leakage unit tests (shift/alignment assertions)  
 **Exit:** feature matrix for SPY with documented column dictionary
 
-### Milestone 3 — Baselines & evaluation
-- HAR-RV OLS, EWMA, historical mean  
-- QLIKE/MSE/MAE; walk-forward with embargo  
-- Comparison tables  
-**Exit:** notebook/CLI showing baselines beat naive mean on held-out folds
+### Milestone 3 — Baselines & evaluation — DONE (2026-07-28)
+Completed:
+- Historical mean, EWMA, HAR-RV OLS baselines
+- QLIKE/MSE/MAE + expanding walk-forward with embargo
+- `vip evaluate` comparison table + artifact persistence
 
 ### Milestone 4 — Factor intelligence
 - Regularized linear models + permutation importance  
@@ -449,16 +449,17 @@ Completed:
 ## Status
 
 ### Milestone 0 — Foundations — DONE (2026-07-28)
+### Milestone 1 — Data spine — DONE (2026-07-28)
+### Milestone 2 — Features & targets — DONE (2026-07-28)
+### Milestone 3 — Baselines & evaluation — DONE (2026-07-28)
 
-Completed:
-- Installable package (`volatility-intelligence-platform` / import `vip`)
-- Domain layer (errors, enums, value objects, entities, protocols)
-- Config schema + `configs/default.yaml` + loader
-- Parquet market-data store + filesystem artifact store
-- Logging helpers + CLI (`vip --help`, `vip info`)
-- Unit tests green; editable install works
+Completed (M3):
+- Baseline models with shared fit/predict interface
+- Walk-forward evaluation (embargo ≥ horizon)
+- CLI `vip evaluate` and artifacts under `data/artifacts/`
 
-Next: Milestone 1 — Data spine (yfinance ingest for SPY)
+Next: Milestone 4 — Factor intelligence  
+(Walkthrough to be written before implementation)
 
 ## Suggested Flagship Demo Narrative
 

@@ -37,3 +37,12 @@ def test_features_help_exits_zero() -> None:
     assert result.exit_code == 0
     assert "--symbol" in result.stdout
     assert "--horizon" in result.stdout
+
+
+def test_evaluate_help_exits_zero() -> None:
+    """Evaluate help should be available."""
+    result = runner.invoke(app, ["evaluate", "--help"])
+    assert result.exit_code == 0
+    assert "--symbol" in result.stdout
+    assert "--n-splits" in result.stdout
+    assert "--embargo" in result.stdout

@@ -63,7 +63,7 @@ class FilesystemArtifactStore:
         self,
         experiment_id: ExperimentId,
         name: str,
-        payload: dict[str, Any],
+        payload: object,
     ) -> Path:
         """Persist a JSON-serializable artifact.
 
@@ -139,4 +139,4 @@ class FilesystemArtifactStore:
                 f"Artifact '{name}' for {experiment_id.value} "
                 "must be a JSON object"
             )
-        return loaded
+        return loaded # after json.loads

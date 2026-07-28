@@ -1,51 +1,42 @@
 # `vip.cli`
 
 ## Purpose
-
 The CLI package exposes user-facing commands for operating the research platform from the terminal.  
-
 It should remain a thin interface layer that delegates work to application/use-case modules.
 
 ## Modules
-
-- `main.py` - Typer app entrypoint, global options, and initial commands.
-
+- `main.py` - Typer app entrypoint, global options, and command registration.
 - `__init__.py` - Exposes the CLI app object.
-
-- `commands/` - (planned) command modules such as ingest, features, train, evaluate, report.
+- `commands/ingest.py` - Registers the `vip ingest` command.
+- `commands/__init__.py` - Re-exports command registration helpers.
 
 ## Key APIs
-
-- `app` - Typer application referenced by `pyproject.toml` script entrypoint.
-
-- `info` command - Prints version and selected default config values.
-
+- `app` - Typer application referenced by the `pyproject.toml` script entrypoint.
 - Root callback - Applies shared runtime options (for example log level).
+- `info` command - Prints package version and selected default config values.
+- `ingest` command - Fetches, validates, and persists daily OHLCV data.
+- `ingest_command(app)` - Registers the ingest command on the Typer app.
 
 ## Dependencies
-
-- Depends on: `typer`, config loader, orchestration logging.
-
-- Must not depend on: concrete vendor APIs or heavy modeling logic directly.
+- Depends on: `typer`, config loader, orchestration logging, application use-cases.
+- Prefer keeping vendor/SDK details out of CLI modules when practical; construct adapters in the command and call application use-cases.
 
 ## Usage
-
 From an installed editable environment:
 
 - `vip --help`
-
 - `vip info`
+- `vip ingest --help`
+- `vip ingest --symbol SPY --start 2024-01-01 --end 2024-03-01`
 
 Future:
 
-- `vip ingest --symbol SPY`
-
 - `vip train --config configs/experiments/...`
+- `vip evaluate ...`
+- `vip report ...`
 
 ## Notes
-
 - Keep commands composable and explicit.
-
-- Prefer passing configuration paths/flags rather than hardcoding behavior.
-
+- Prefer CLI flags/config overrides over hardcoding behavior.
+- Date options are strings (`YYYY-MM-DD`) because Typer does not support `datetime.date` annotations.
 - Delegate business logic to application modules to preserve testability.

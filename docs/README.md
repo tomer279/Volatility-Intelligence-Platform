@@ -4,25 +4,19 @@ This folder collects project-level docs for the Volatility Intelligence Platform
 
 ## Start here
 
-- Architecture and roadmap: `../plan.md`](../[plan.md](http://plan.md))
+- Architecture and roadmap: [`../plan.md`](../plan.md)
+- Contributing and local setup: [`contributing.md`](contributing.md)
+- Package overview: [`../README.md`](../README.md)
 
-- Contributing and local setup: `contributing.md`]([contributing.md](http://contributing.md))
+## Package docs (`src/vip`)
 
-- Package overview: `../README.md`](../[README.md](http://README.md))
-
-## Package docs `src/vip`)
-
-Each package has a short README describing purpose, modules, key APIs, and boundaries:
-
-- `domain`](../src/vip/domain/[README.md](http://README.md)) — entities, value objects, protocols, errors
-
-- `config`](../src/vip/config/[README.md](http://README.md)) — YAML loading and validated settings
-
-- `persistence`](../src/vip/persistence/[README.md](http://README.md)) — Parquet market data and artifact storage
-
-- `orchestration`](../src/vip/orchestration/[README.md](http://README.md)) — logging and (later) wiring
-
-- `cli`](../src/vip/cli/[README.md](http://README.md)) — terminal commands
+- [`domain`](../src/vip/domain/README.md) — entities, value objects, protocols, errors
+- [`config`](../src/vip/config/README.md) — YAML loading and validated settings
+- [`persistence`](../src/vip/persistence/README.md) — Parquet market data and artifact storage
+- [`orchestration`](../src/vip/orchestration/README.md) — logging and (later) wiring
+- [`cli`](../src/vip/cli/README.md) — terminal commands (`info`, `ingest`)
+- [`ingestion`](../src/vip/ingestion/README.md) — Yahoo Finance adapter and OHLCV validation
+- [`application`](../src/vip/application/README.md) — use-cases that orchestrate ingest and later workflows
 
 ## Planned docs
 
@@ -32,7 +26,7 @@ As later milestones land, add:
 
 - `architecture.md` — deeper design notes beyond `plan.md`
 
-- Package READMEs for `ingestion`, `features`, `modeling`, `evaluation`, `visualization`, `reporting`
+- Package READMEs for `features`, `modeling`, `evaluation`, `visualization`, `reporting`
 
 ## Conventions
 

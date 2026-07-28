@@ -368,18 +368,22 @@ Experiment configs should be **diffable and checked into git**; secrets (API key
 
 ## 8. Development Roadmap
 
-### Milestone 0 — Foundations (week 1)
+### Milestone 0 — Foundations (week 1) - DONE (2026-07-28)
+
+Completed:
 - Package skeleton, `pyproject.toml`, lint/type/test CI  
 - Domain entities + protocols  
 - Config schema + `default.yaml`  
 - Parquet store + logging  
 **Exit:** `pip install -e .` and empty CLI `vip --help`
 
-### Milestone 1 — Data spine
-- yfinance ingestion, validators, trading calendar alignment  
-- Cache raw/normalized OHLCV  
-- Smoke tests with recorded fixtures (no network in unit tests)  
-**Exit:** `vip ingest --symbol SPY` writes reproducible Parquet
+### Milestone 1 — Data spine - DONE (2026-07-28)
+
+Completed:
+- yfinance adapter + OHLCV validators
+- ingest use-case + `vip ingest`
+- SPY Parquet persistence under `data/raw/`
+- Unit tests (network-free) and package docs
 
 ### Milestone 2 — Features & targets
 - RV targets (multi-horizon) + HAR / return / range / volume features  

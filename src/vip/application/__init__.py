@@ -28,6 +28,11 @@ from vip.application.run_baseline_experiment import (
     BaselineExperimentResult,
     run_baseline_experiment,
 )
+from vip.application.screen_factors import (
+    FactorScreenResult,
+    ScreenConfig,
+    screen_factors,
+)
 
 __all__ = [
     "BaselineExperimentResult",
@@ -36,4 +41,7 @@ __all__ = [
     "build_and_persist_feature_matrix",
     "ingest_market_data",
     "run_baseline_experiment",
+    "FactorScreenResult",
+    "ScreenConfig",
+    "screen_factors",
 ]

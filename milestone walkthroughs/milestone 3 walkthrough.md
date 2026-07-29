@@ -7,96 +7,83 @@ Evaluate simple, well-understood volatility baselines on the Milestone 2 feature
 This milestone should prove:
 
 - Models implement a common `VolatilityModel`-style fit/predict contract.
-
 - Metrics suitable for volatility forecasting are implemented and tested.
-
 - Walk-forward splitting respects time order and uses an embargo related to the forecast horizon.
-
 - Baselines can be compared in a clear table (CLI and/or notebook).
-
 - Results are persisted as experiment artifacts for reproducibility.
 
 ---
 
+
+
 ## Scope
+
+
 
 ### In scope
 
 - `vip.modeling` package:
-
   - historical mean baseline
-
   - EWMA baseline
-
   - HAR-RV OLS baseline (using HAR feature columns already in the matrix)
-
 - `vip.evaluation` package:
-
   - QLIKE, MSE, MAE
-
   - walk-forward splitter (expanding or rolling train window)
-
   - embargo / purge aligned to target horizon
-
   - model comparison table builder
-
 - Application use-case: run baseline experiment on persisted features.
-
 - Persist metrics / fold summaries under `data/artifacts/`.
-
 - CLI: `vip evaluate` (or `vip baselines`).
-
 - Unit tests on synthetic matrices (no network).
-
 - Optional notebook: `notebooks/03_model_diagnostics.ipynb` for visual inspection.
+
+
 
 ### Out of scope
 
 - Regularized linear models / factor screening (Milestone 4).
-
 - Tree models / SHAP (Milestone 5).
-
 - HTML research reports (Milestone 4+).
-
 - Hyperparameter search grids (keep defaults simple).
-
 - Live trading or position sizing.
 
 ---
+
+
 
 ## Acceptance Criteria
 
 Milestone 3 is complete when all of the following are true:
 
 1. Three baselines are implemented and unit-tested: historical mean, EWMA, HAR-RV OLS.
-
 2. Metrics QLIKE, MSE, MAE are implemented and unit-tested.
-
 3. Walk-forward evaluation runs without leakage (embargo ≥ horizon).
-
 4. `vip evaluate --symbol SPY` (or agreed command) prints a comparison table.
-
 5. On SPY held-out aggregation, HAR-RV OLS beats historical mean on **primary metric QLIKE** (lower is better).
-
 6. Fold/metrics artifacts are written under `data/artifacts/`.
-
 7. Full pytest suite remains green (no network in unit tests).
 
 ---
 
+
+
 ## Locked Research Defaults
 
-| Setting | Value |
-|---------|--------|
-| Symbol | SPY |
-| Input | `data/processed/SPY/features.parquet` |
-| Target column | `target_rv_cc_5d` |
-| HAR feature columns | `rv_cc_1d`, `rv_cc_5d`, `rv_cc_21d` |
-| Primary metric | QLIKE (lower is better) |
-| Secondary metrics | MSE, MAE |
-| Horizon / embargo | 5 trading days (embargo ≥ 5) |
+
+| Setting             | Value                                 |
+| ------------------- | ------------------------------------- |
+| Symbol              | SPY                                   |
+| Input               | `data/processed/SPY/features.parquet` |
+| Target column       | `target_rv_cc_5d`                     |
+| HAR feature columns | `rv_cc_1d`, `rv_cc_5d`, `rv_cc_21d`   |
+| Primary metric      | QLIKE (lower is better)               |
+| Secondary metrics   | MSE, MAE                              |
+| Horizon / embargo   | 5 trading days (embargo ≥ 5)          |
+
 
 ---
+
+
 
 ## Target Folder Additions
 
@@ -173,7 +160,11 @@ Optional dependency additions in `pyproject.toml`:
 
 ---
 
+
+
 ## Research Contract
+
+
 
 ### Prediction task
 
@@ -182,6 +173,8 @@ At each session `t` in a test fold:
 - Features `X_t` are known at `t` (already enforced in M2).
 - Target `y_t = target_rv_cc_5d` is the forward 5d RV.
 - Model must be fit **only** on training rows strictly before the test block (after embargo).
+
+
 
 ### Walk-forward design (default)
 
@@ -203,13 +196,15 @@ Let `y` = realized vol, `yhat` = forecast (both positive).
 - **MSE:** `mean((y - yhat)^2)`
 - **MAE:** `mean(|y - yhat|)`
 - **QLIKE:** `mean(log(yhat^2) + y^2 / yhat^2)`  
-  (standard vol-forecast form; lower is better)
+(standard vol-forecast form; lower is better)
 
 Implementation notes:
 
 - Clip / guard against non-positive predictions `yhat <= 0`) with a clear policy:
   - Recommendation: enforce `yhat = max(yhat, epsilon)` with small `epsilon` (e.g. `1e-8`) and document it.
 - Align predictions and targets on the same index; drop NaNs before scoring.
+
+
 
 ### Baselines
 
@@ -235,6 +230,8 @@ Success narrative:
 
 ---
 
+
+
 ## Design Rules for Milestone 3
 
 1. No peeking: fit only on train indices; never use test `y` inside `fit`.
@@ -248,7 +245,11 @@ Success narrative:
 
 ---
 
+
+
 ## Step-by-Step Build Plan
+
+
 
 ## Step 1 — Package skeletons + dependencies
 
@@ -279,6 +280,8 @@ Checkpoint:
 
 ---
 
+
+
 ## Step 2 — Metrics first `evaluation/metrics.py`)
 
 Implement:
@@ -298,6 +301,8 @@ Checkpoint:
 - metrics tests green
 
 ---
+
+
 
 ## Step 3 — Baselines `modeling/baselines.py`)
 
@@ -319,6 +324,8 @@ Checkpoint:
 - baseline tests green
 
 ---
+
+
 
 ## Step 4 — Walk-forward splitting `evaluation/splitting.py`)
 
@@ -345,6 +352,8 @@ Checkpoint:
 
 ---
 
+
+
 ## Step 5 — Walk-forward runner `evaluation/walk_forward.py`)
 
 Implement:
@@ -366,6 +375,8 @@ Checkpoint:
 - walk-forward tests green
 
 ---
+
+
 
 ## Step 6 — Application use-case
 
@@ -389,6 +400,8 @@ Checkpoint:
 - use-case unit test with tmp_path green
 
 ---
+
+
 
 ## Step 7 — CLI `vip evaluate`
 
@@ -420,26 +433,25 @@ artifact: data/artifacts/.../metrics.json
 Checkpoint:
 
 - `vip evaluate --help`
-
 - `vip evaluate --symbol SPY` succeeds after features exist
 
 ---
+
+
 
 ## Step 8 — Docs + plan status
 
 Update:
 
 - `modeling/README.md`, `evaluation/README.md`
-
 - `application/README.md`, `cli/README.md`
-
 - `docs/README.md`
-
 - `plan.md` Milestone 3 DONE
-
 - optional: short methodology note in `docs/research_methodology.md` (metrics + embargo)
 
 ---
+
+
 
 ## Suggested Command Sequence
 
@@ -461,6 +473,7 @@ py -m pytest tests/unit/test_run_baseline_[experiment.py](http://experiment.py) 
 
 
 # data prerequisites from M1/M2
+
 ```powershell
 vip features --symbol SPY
 
@@ -468,57 +481,57 @@ vip evaluate --symbol SPY
 
 py -m pytest -q
 ```
+
 ---
+
+
 
 ## Common Pitfalls
 
 - Fitting once on the full sample then “evaluating” by slices (not true walk-forward).
-
 - Embargo shorter than horizon (label overlap).
-
 - Using test realized values inside EWMA recursion.
-
 - QLIKE with zero/negative forecasts (log/division blow-ups).
-
 - Comparing models on different row sets/folds.
-
 - Leaking scaling fit across folds (not needed for these baselines; avoid sklearn Pipeline fit on full data).
 
 ---
 
+
+
 ## Decisions Locked for This Walkthrough
 
 1. Primary metric: **QLIKE** (lower better); also report MSE/MAE.
-
 2. Baselines: **Historical Mean**, **EWMA (frozen at train end)**, **HAR-RV OLS**.
-
 3. Walk-forward: **expanding train**, embargo = **5** trading days by default.
-
 4. HAR features: existing `rv_cc_1d`, `rv_cc_5d`, `rv_cc_21d`.
-
 5. Artifacts written under `data/artifacts/{experiment_id}/`.
 
 ---
 
+
+
 ## Milestone 3 Exit Checklist
 
-- [ ] Metrics implemented + tested
+- [x] Metrics implemented + tested
 
-- [ ] Three baselines implemented + tested
+- [x] Three baselines implemented + tested
 
-- [ ] Walk-forward splitter + runner implemented + tested
+- [x] Walk-forward splitter + runner implemented + tested
 
-- [ ] Application use-case persists artifacts
+- [x] Application use-case persists artifacts
 
-- [ ] CLI `vip evaluate` prints comparison table
+- [x] CLI `vip evaluate` prints comparison table
 
-- [ ] On SPY, HAR-RV OLS beats historical mean on QLIKE
+- [x] On SPY, HAR-RV OLS beats historical mean on QLIKE
 
-- [ ] Docs updated; Milestone 3 marked DONE in `plan.md`
+- [x] Docs updated; Milestone 3 marked DONE in `plan.md`
 
-- [ ] Full pytest suite green
+- [x] Full pytest suite green
 
 ---
+
+
 
 ## What Comes Next (Milestone 4 preview)
 

@@ -10,6 +10,7 @@ It should remain a thin interface layer that delegates work to application/use-c
 - `commands/ingest.py` - Registers the `vip ingest` command.
 - `commands/features.py` - Registers the `vip features` command.
 - `commands/evaluate.py` - Registers the `vip evaluate` command.
+- `commands/screen.py` - Registers the `vip screen` command.
 - `commands/__init__.py` - Re-exports command registration helpers.
 
 ## Key APIs
@@ -19,7 +20,8 @@ It should remain a thin interface layer that delegates work to application/use-c
 - `ingest` command - Fetches, validates, and persists daily OHLCV data.
 - `features` command - Builds and persists a feature matrix from ingested OHLCV.
 - `evaluate` command - Runs baseline walk-forward evaluation and prints a comparison table.
-- `ingest_command(app)` / `features_command(app)` / `evaluate_command(app)` - Command registrars.
+- `screen` command - Runs factor screening (horse-race + Ridge importance) and writes an HTML report.
+- `ingest_command(app)` / `features_command(app)` / `evaluate_command(app)` / `screen_command(app)` - Command registrars.
 
 ## Dependencies
 - Depends on: `typer`, config loader, orchestration logging, application use-cases, persistence stores.
@@ -35,6 +37,9 @@ From an installed editable environment:
 - `vip evaluate --help`
 - `vip evaluate --symbol SPY`
 - `vip evaluate --symbol SPY --n-splits 5 --embargo 5`
+- `vip screen --help`
+- `vip screen --symbol SPY`
+- `vip screen --symbol SPY --n-splits 5 --embargo 5 --n-repeats 5 --top-k 3`
 
 Future:
 
@@ -46,4 +51,5 @@ Future:
 - Date options are strings (`YYYY-MM-DD`) because Typer does not support `datetime.date` annotations.
 - `features` reads OHLCV from `data/raw/` and writes matrices to `data/processed/`.
 - `evaluate` reads `data/processed/` and writes artifacts under `data/artifacts/`.
+- `screen` reads `data/processed/`, prints horse-race + ranked factors, and writes artifacts (including `report.html`) under `data/artifacts/`.
 - Delegate business logic to application modules to preserve testability.

@@ -396,11 +396,11 @@ Completed:
 - QLIKE/MSE/MAE + expanding walk-forward with embargo
 - `vip evaluate` comparison table + artifact persistence
 
-### Milestone 4 — Factor intelligence
-- Regularized linear models + permutation importance  
-- Factor screening use-case and stability plots  
-- First HTML research report  
-**Exit:** ranked factor list with confidence caveats (correlation, regime)
+### Milestone 4 — Factor intelligence — DONE (2026-07-28)
+Completed:
+- Regularized linear models (Ridge/Lasso/ElasticNet) + permutation importance
+- Factor screening use-case, stability ranking, importance plot
+- First HTML research report via `vip screen`
 
 ### Milestone 5 — Nonlinear & robustness
 - LightGBM/RF optional path; SHAP summary  
@@ -452,14 +452,14 @@ Completed:
 ### Milestone 1 — Data spine — DONE (2026-07-28)
 ### Milestone 2 — Features & targets — DONE (2026-07-28)
 ### Milestone 3 — Baselines & evaluation — DONE (2026-07-28)
+### Milestone 4 — Factor intelligence — DONE (2026-07-28)
 
-Completed (M3):
-- Baseline models with shared fit/predict interface
-- Walk-forward evaluation (embargo ≥ horizon)
-- CLI `vip evaluate` and artifacts under `data/artifacts/`
+Completed (M4):
+- Ridge/Lasso/ElasticNet with train-only scaling
+- Walk-forward permutation importance (ΔQLIKE) and factor stability tables
+- `vip screen` + HTML report under `data/artifacts/`
 
-Next: Milestone 4 — Factor intelligence  
-(Walkthrough to be written before implementation)
+Next: Milestone 5 — Nonlinear & robustness
 
 ## Suggested Flagship Demo Narrative
 

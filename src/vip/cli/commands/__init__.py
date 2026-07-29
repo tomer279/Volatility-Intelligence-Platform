@@ -8,14 +8,18 @@ features_command
     Register the ``vip features`` command.
 evaluate_command
     Register the ``vip evaluate`` command.
+screen_command
+    Register the ``vip screen`` command.
 """
 
 from vip.cli.commands.evaluate import evaluate_command
 from vip.cli.commands.features import features_command
 from vip.cli.commands.ingest import ingest_command
+from vip.cli.commands.screen import screen_command
 
 __all__ = [
     "evaluate_command",
     "features_command",
     "ingest_command",
+    "screen_command",
 ]

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>VIP Factor Screen — {{ symbol }}</title>
+  <style>
+    body { font-family: Georgia, "Times New Roman", serif; margin: 2rem auto; max-width: 900px; color: #222; line-height: 1.45; }
+    h1, h2 { font-family: Arial, Helvetica, sans-serif; }
+    table { border-collapse: collapse; width: 100%; margin: 1rem 0 1.5rem; font-size: 0.95rem; }
+    th, td { border: 1px solid #ccc; padding: 0.4rem 0.6rem; text-align: left; }
+    th { background: #f3f3f3; }
+    .meta { color: #555; margin-bottom: 1.5rem; }
+    .caveat { margin: 0.4rem 0; }
+    img.importance { max-width: 100%; height: auto; border: 1px solid #ddd; }
+  </style>
+</head>
+<body>
+  <h1>Volatility Intelligence Platform — Factor Screen</h1>
+  <p class="meta">
+    Symbol: <strong>{{ symbol }}</strong><br />
+    Experiment: {{ experiment_id }}<br />
+    Generated: {{ generated_on }}
+  </p>
+
+  <h2>Research question</h2>
+  <p>
+    Which features best predict next-5-day close-to-close realized volatility
+    (<code>{{ target_column }}</code>) under walk-forward evaluation with primary
+    metric <code>{{ primary_metric }}</code> (lower is better)?
+  </p>
+
+  <h2>Locked methodology</h2>
+  <ul>
+    <li>Target: <code>{{ target_column }}</code></li>
+    <li>Primary metric: <code>{{ primary_metric }}</code></li>
+    <li>Walk-forward: expanding, n_splits={{ n_splits }}, embargo={{ embargo_size }}</li>
+    <li>Screening model for importance: <code>{{ screening_model }}</code></li>
+    <li>Importance: mean ΔQLIKE under test-column permutation</li>
+  </ul>
+
+  <h2>Model horse-race</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>model</th>
+        <th>qlike</th>
+        <th>mse</th>
+        <th>mae</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in model_rows %}
+      <tr>
+        <td>{{ row.model }}</td>
+        <td>{{ "%.6f"|format(row.qlike) }}</td>
+        <td>{{ "%.6f"|format(row.mse) }}</td>
+        <td>{{ "%.6f"|format(row.mae) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>Ranked factors</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>feature</th>
+        <th>mean_importance</th>
+        <th>std_importance</th>
+        <th>top_k_hit_rate</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in factor_rows %}
+      <tr>
+        <td>{{ row.feature }}</td>
+        <td>{{ "%.6f"|format(row.mean_importance) }}</td>
+        <td>{{ "%.6f"|format(row.std_importance) }}</td>
+        <td>{{ "%.3f"|format(row.top_k_hit_rate) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>Importance plot</h2>
+  {% if importance_image_base64 %}
+  <img class="importance"
+       alt="Permutation importance bar chart"
+       src="data:image/png;base64,{{ importance_image_base64 }}" />
+  {% else %}
+  <p>Importance plot unavailable.</p>
+  {% endif %}
+
+  <h2>Caveats</h2>
+  <ul>
+    {% for caveat in caveats %}
+    <li class="caveat">{{ caveat }}</li>
+    {% endfor %}
+  </ul>
+</body>
+</html>

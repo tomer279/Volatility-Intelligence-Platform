@@ -5,6 +5,7 @@ This folder collects project-level docs for the Volatility Intelligence Platform
 ## Start here
 
 - Architecture and roadmap: [`../plan.md`](../plan.md)
+- Research methodology: [`research_methodology.md`](research_methodology.md)
 - Contributing and local setup: [`contributing.md`](contributing.md)
 - Package overview: [`../README.md`](../README.md)
 - Milestone walkthroughs: [`../milestone walkthroughs/`](../milestone%20walkthroughs/)
@@ -15,20 +16,20 @@ This folder collects project-level docs for the Volatility Intelligence Platform
 - [`config`](../src/vip/config/README.md) — YAML loading and validated settings
 - [`persistence`](../src/vip/persistence/README.md) — Parquet market data, feature matrices, and artifacts
 - [`orchestration`](../src/vip/orchestration/README.md) — logging and (later) wiring
-- [`cli`](../src/vip/cli/README.md) — terminal commands (`info`, `ingest`, `features`, `evaluate`)
+- [`cli`](../src/vip/cli/README.md) — terminal commands (`info`, `ingest`, `features`, `evaluate`, `screen`)
 - [`ingestion`](../src/vip/ingestion/README.md) — Yahoo Finance adapter and OHLCV validation
 - [`features`](../src/vip/features/README.md) — targets, feature families, registry, and pipeline
-- [`modeling`](../src/vip/modeling/README.md) — volatility forecasting baselines
-- [`evaluation`](../src/vip/evaluation/README.md) — metrics, walk-forward splits, comparison tables
-- [`application`](../src/vip/application/README.md) — use-cases for ingest, features, and baseline evaluation
+- [`modeling`](../src/vip/modeling/README.md) — baselines and regularized linear models
+- [`evaluation`](../src/vip/evaluation/README.md) — metrics, walk-forward, importance, stability
+- [`visualization`](../src/vip/visualization/README.md) — research plots (importance bars)
+- [`reporting`](../src/vip/reporting/README.md) — HTML experiment memos
+- [`application`](../src/vip/application/README.md) — use-cases for ingest, features, baselines, screening
 
 ## Planned docs
 
 As later milestones land, add:
 
-- `research_methodology.md` — targets, metrics, walk-forward rules, leakage policy
 - `architecture.md` — deeper design notes beyond `plan.md`
-- Package READMEs for `visualization`, `reporting`
 
 ## Conventions
 

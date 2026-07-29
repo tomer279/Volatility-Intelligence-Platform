@@ -11,11 +11,14 @@ requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [{ name = "Tomer" }]
 dependencies = [
+    "jinja2>=3.1",
+    "matplotlib>=3.8",
     "pandas>=2.0",
     "pyarrow>=14.0",
     "pydantic>=2.0",
     "pydantic-settings>=2.0",
     "pyyaml>=6.0",
+    "scikit-learn>=1.4",
     "statsmodels>=0.14",
     "typer>=0.12",
     "yfinance>=0.2",

@@ -6,6 +6,8 @@ This folder collects project-level docs for the Volatility Intelligence Platform
 
 - Architecture and roadmap: [`../plan.md`](../plan.md)
 - Research methodology: [`research_methodology.md`](research_methodology.md)
+- Architecture guide: [`architecture.md`](architecture.md)
+- How to add a feature: [`how_to_add_feature.md`](how_to_add_feature.md)
 - Contributing and local setup: [`contributing.md`](contributing.md)
 - Package overview: [`../README.md`](../README.md)
 - Milestone walkthroughs: [`../milestone walkthroughs/`](../milestone%20walkthroughs/)
@@ -24,12 +26,6 @@ This folder collects project-level docs for the Volatility Intelligence Platform
 - [`visualization`](../src/vip/visualization/README.md) — research plots (importance bars)
 - [`reporting`](../src/vip/reporting/README.md) — HTML experiment memos
 - [`application`](../src/vip/application/README.md) — use-cases for ingest, features, baselines, screening
-
-## Planned docs
-
-As later milestones land, add:
-
-- `architecture.md` — deeper design notes beyond `plan.md`
 
 ## Conventions
 

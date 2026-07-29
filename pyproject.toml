@@ -38,6 +38,10 @@ nonlinear = [
     "lightgbm>=4.0",
     "shap>=0.44"
 ]
+api = [
+    "fastapi>=0.115",
+    "uvicorn>=0.30"
+]
 
 [project.scripts]
 vip = "vip.cli.main:app"

@@ -412,7 +412,7 @@ Completed:
 - "What works when" section in HTML report
 - Multi-symbol batch screening (`vip screen-batch`)
 
-### Milestone 6 — Platform polish (portfolio-ready)
+### Milestone 6 — Platform polish (portfolio-ready) - DONE (2026-07-29)
 - Full CLI: ingest → features → experiment → report  
 - Integration tests + golden-file metrics for one frozen config  
 - Docs: methodology, architecture, how to add a feature  
@@ -458,16 +458,15 @@ Completed:
 ### Milestone 3 — Baselines & evaluation — DONE (2026-07-28)
 ### Milestone 4 — Factor intelligence — DONE (2026-07-28)
 ### Milestone 5 — Nonlinear & robustness — DONE (2026-07-29)
+### Milestone 6 — Platform polish (portfolio-ready) - DONE (2026-07-29)
 
-Completed (M5):
-- RandomForest + optional TreeSHAP (behind `.[nonlinear]`)
-- Median ΔQLIKE importance ranking (spike-robust)
-- VIX cross-asset features (`vix_level`, `vix_chg_1d`)
-- COVID / 2022 regime-sliced metrics in artifacts + HTML
-- "What works when" best-model-per-regime table in report
-- `vip screen-batch --symbols SPY,QQQ,IWM`
+Completed (M6):
+- `vip run` composite CLI (ingest → features → screen) for `--symbol` and `--symbols`
+- Integration tests with golden-file metrics (network-free)
+- Docs: methodology, architecture, how to add a feature
+- Optional FastAPI endpoint for experiment artifact retrieval
 
-Next: Milestone 6 — Platform polish
+Next: post-MVP (intraday RV, options surfaces, cross-sectional models, scheduling)
 
 ## Suggested Flagship Demo Narrative
 

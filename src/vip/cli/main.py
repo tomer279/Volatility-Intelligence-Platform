@@ -17,8 +17,9 @@ from vip.cli.commands import (
     evaluate_command,
     features_command,
     ingest_command,
+    run_command,
     screen_command,
-    screen_batch_command
+    screen_batch_command,
 )
 
 app = typer.Typer(
@@ -31,6 +32,7 @@ features_command(app)
 evaluate_command(app)
 screen_command(app)
 screen_batch_command(app)
+run_command(app)
 
 @app.callback()
 def main(

@@ -10,11 +10,16 @@ evaluate_command
     Register the ``vip evaluate`` command.
 screen_command
     Register the ``vip screen`` command.
+screen_batch_command
+    Register the ``vip screen-batch`` command.
+run_command
+    Register the ``vip run`` command.
 """
 
 from vip.cli.commands.evaluate import evaluate_command
 from vip.cli.commands.features import features_command
 from vip.cli.commands.ingest import ingest_command
+from vip.cli.commands.run import run_command
 from vip.cli.commands.screen import screen_command
 from vip.cli.commands.screen_batch import screen_batch_command
 
@@ -23,6 +28,7 @@ __all__ = [
     "evaluate_command",
     "features_command",
     "ingest_command",
+    "run_command",
     "screen_command",
-    "screen_batch_command"
+    "screen_batch_command",
 ]

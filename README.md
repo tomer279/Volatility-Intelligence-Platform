@@ -3,8 +3,7 @@
 Research platform for forecasting realized volatility and screening which factors
 best predict it. The toolchain covers ingestion, feature engineering, walk-forward
 evaluation, factor screening, and HTML research memos — designed like an internal
-quant research tool.
-
+quant research tool. 
 > Research / educational use only. Not investment advice. Market data comes from
 > Yahoo Finance via `yfinance`, which is unofficial and may rate-limit or break
 > without notice.
@@ -186,6 +185,12 @@ Further reading:
 - [`docs/how_to_add_feature.md`](docs/how_to_add_feature.md) — add a factor end-to-end
 - [`docs/research_methodology.md`](docs/research_methodology.md) — research design and caveats
 - [`docs/README.md`](docs/README.md) — documentation index
+
+## Built with
+
+Developed with [Cursor](https://cursor.com) as an AI-assisted coding environment,
+alongside standard Python tooling (pytest, Ruff, Typer, scikit-learn, etc.).
+Architecture, research design, and review remain human-owned.
 
 ## License
 

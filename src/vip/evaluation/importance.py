@@ -83,6 +83,9 @@ class ImportanceOptions:
         Number of shuffles per feature per fold.
     random_seed : int, default 0
         Base seed for reproducible column permutations.
+    delta_cap : float or None, default None
+        If set, clip each repeat's ΔQLIKE to ``[-delta_cap, delta_cap]``
+        before averaging into the fold-level importance.
 
     Methods
     -------
@@ -94,11 +97,14 @@ class ImportanceOptions:
 
     n_repeats: int = DEFAULT_N_REPEATS
     random_seed: int = DEFAULT_RANDOM_SEED
+    delta_cap: float | None = None
 
     def validate(self) -> None:
         """Raise ``DataValidationError`` when options are invalid."""
         if self.n_repeats < 1:
             raise DataValidationError("n_repeats must be at least 1.")
+        if self.delta_cap is not None and self.delta_cap <= 0:
+            raise DataValidationError("delta_cap must be positive when set.")
 
     def describe(self) -> str:
         """Return a short human-readable summary.
@@ -108,7 +114,11 @@ class ImportanceOptions:
         str
             Compact description of importance options.
         """
-        return f"n_repeats={self.n_repeats}, random_seed={self.random_seed}"
+        cap_text = "none" if self.delta_cap is None else f"{self.delta_cap}"
+        return (
+            f"n_repeats={self.n_repeats}, random_seed={self.random_seed}, "
+            f"delta_cap={cap_text}"
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -363,8 +373,16 @@ def _qlike_deltas_for_feature(
             repeat_index,
         )
         permuted_qlike = qlike(state.window.y_test, state.model.predict(shuffled))
-        deltas.append(float(permuted_qlike - state.baseline_qlike))
+        delta = float(permuted_qlike - state.baseline_qlike)
+        deltas.append(_maybe_cap_delta(delta, state.options.delta_cap))
     return deltas
+
+
+def _maybe_cap_delta(delta: float, delta_cap: float | None) -> float:
+    """Clip a QLIKE delta when a positive cap is configured."""
+    if delta_cap is None:
+        return delta
+    return float(np.clip(delta, -delta_cap, delta_cap))
 
 
 def _shuffle_test_column(

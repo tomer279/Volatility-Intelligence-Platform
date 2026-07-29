@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
+from pathlib import Path
 
 import pandas as pd
 
@@ -25,19 +26,27 @@ from vip.evaluation.importance import (
     WalkForwardSpec,
     permutation_importance_folds,
 )
+from vip.evaluation.shap_importance import shap_available, shap_importance_folds
+from vip.modeling.tree_models import RandomForestVolModel
 from vip.evaluation.stability import StabilityOptions, summarize_importance
-from vip.evaluation.walk_forward import run_walk_forward
+from vip.evaluation.regimes import score_predictions_by_regime
+from vip.evaluation.walk_forward import (
+    collect_walk_forward_predictions, run_walk_forward
+)
 from vip.modeling.registry import create_default_model_registry
 from vip.modeling.regularization import RidgeModel
 from vip.persistence.artifact_store import FilesystemArtifactStore
 from vip.persistence.feature_matrix_store import ParquetFeatureMatrixStore
-from vip.visualization.importance_plots import plot_importance_bars
+from vip.visualization.importance_plots import (
+    plot_importance_bars, ImportancePlotOptions
+)
 from vip.reporting.experiment_summary import (
     ReportMeta,
     ScreenReportPayload,
     build_factor_screen_context,
 )
 from vip.reporting.html_report import render_factor_screen_report, write_html_report
+
 
 DEFAULT_TARGET_COLUMN = "target_rv_cc_5d"
 DEFAULT_N_SPLITS = 5
@@ -107,8 +116,8 @@ class ScreenConfig:
 
 
 @dataclass(frozen=True, slots=True)
-class FactorScreenResult:
-    """Summary of a completed factor-screening experiment.
+class ScreenRunIdentity:
+    """Identity fields for a factor-screen run.
 
     Parameters
     ----------
@@ -116,16 +125,103 @@ class FactorScreenResult:
         Evaluated instrument.
     experiment_id : ExperimentId
         Artifact namespace for this run.
+    screening_model : str
+        Model used for permutation importance.
+
+    Methods
+    -------
+    describe()
+        Return a short human-readable summary.
+    meta_payload()
+        Return JSON-friendly identity fields for ``screen_meta``.
+    """
+
+    symbol: Symbol
+    experiment_id: ExperimentId
+    screening_model: str
+
+    def describe(self) -> str:
+        """Return a short human-readable summary.
+
+        Returns
+        -------
+        str
+            Compact identity summary.
+        """
+        return f"{self.symbol.value} / {self.experiment_id.value}"
+
+    def meta_payload(self) -> dict[str, str]:
+        """Return JSON-friendly identity fields.
+
+        Returns
+        -------
+        dict of str to str
+            Symbol and screening model for artifact metadata.
+        """
+        return {
+            "symbol": self.symbol.value,
+            "screening_model": self.screening_model,
+        }
+
+@dataclass(frozen=True, slots=True)
+class ShapScreenOutputs:
+    """Optional TreeSHAP outputs for the screening model path.
+
+    Parameters
+    ----------
+    importance : pandas.DataFrame
+        Fold-wise mean |SHAP| table.
+    ranking : pandas.DataFrame
+        Median-aggregated SHAP ranking.
+
+    Methods
+    -------
+    top_feature()
+        Return the top SHAP-ranked feature.
+    describe()
+        Return a short human-readable summary.
+    """
+
+    importance: pd.DataFrame
+    ranking: pd.DataFrame
+
+    def top_feature(self) -> str:
+        """Return the top SHAP-ranked feature.
+
+        Returns
+        -------
+        str
+            Feature at the top of ``ranking``.
+        """
+        return str(self.ranking.iloc[0]["feature"])
+
+    def describe(self) -> str:
+        """Return a short human-readable summary.
+
+        Returns
+        -------
+        str
+            Compact SHAP summary.
+        """
+        return f"shap_top={self.top_feature()}"
+
+
+@dataclass(frozen=True, slots=True)
+class ScreenResultTables:
+    """Tabular outputs from a factor-screen run.
+
+    Parameters
+    ----------
     summary : pandas.DataFrame
         Aggregate model horse-race metrics.
     fold_metrics : pandas.DataFrame
         Per-fold model metrics.
     importance : pandas.DataFrame
-        Fold-wise Ridge permutation importance.
+        Fold-wise permutation importance.
     ranking : pandas.DataFrame
         Aggregated factor ranking with stability stats.
-    screening_model : str
-        Model used for permutation importance.
+    regime_metrics : pandas.DataFrame
+        Regime-sliced OOS metrics.
 
     Methods
     -------
@@ -135,13 +231,11 @@ class FactorScreenResult:
         Return the best horse-race model's mean QLIKE.
     """
 
-    symbol: Symbol
-    experiment_id: ExperimentId
     summary: pd.DataFrame
     fold_metrics: pd.DataFrame
     importance: pd.DataFrame
     ranking: pd.DataFrame
-    screening_model: str
+    regime_metrics: pd.DataFrame
 
     def top_feature(self) -> str:
         """Return the highest-ranked feature name.
@@ -149,7 +243,7 @@ class FactorScreenResult:
         Returns
         -------
         str
-            Feature with largest mean permutation importance.
+            Feature at the top of ``ranking``.
         """
         return str(self.ranking.iloc[0]["feature"])
 
@@ -162,6 +256,50 @@ class FactorScreenResult:
             Mean QLIKE for the first row of ``summary``.
         """
         return float(self.summary.iloc[0]["qlike"])
+
+
+@dataclass(frozen=True, slots=True)
+class FactorScreenResult:
+    """Summary of a completed factor-screening experiment.
+
+    Parameters
+    ----------
+    identity : ScreenRunIdentity
+        Symbol, experiment id, and screening model.
+    tables : ScreenResultTables
+        Horse-race, importance, ranking, and regime tables.
+
+    Methods
+    -------
+    top_feature()
+        Return the highest-ranked feature name.
+    best_model_qlike()
+        Return the best horse-race model's mean QLIKE.
+    """
+
+    identity: ScreenRunIdentity
+    tables: ScreenResultTables
+    shap: ShapScreenOutputs | None = None
+
+    def top_feature(self) -> str:
+        """Return the highest-ranked feature name.
+
+        Returns
+        -------
+        str
+            Feature at the top of the ranking table.
+        """
+        return self.tables.top_feature()
+
+    def best_model_qlike(self) -> float:
+        """Return the best horse-race model's mean QLIKE.
+
+        Returns
+        -------
+        float
+            Best model QLIKE from the horse-race summary.
+        """
+        return self.tables.best_model_qlike()
 
 
 def screen_factors(
@@ -199,18 +337,26 @@ def screen_factors(
     features, target = _load_features_and_target(feature_store, symbol)
     fold_metrics, summary = _run_horse_race(features, target, resolved)
     importance, ranking = _run_ridge_importance(features, target, resolved)
+    regime_metrics = _run_regime_metrics(features, target, resolved)
+    shap_outputs = _run_shap_importance(features, target, resolved)
 
     experiment_id = ExperimentId(
         f"factor-screen-{symbol.as_path_key().lower()}-{date.today().isoformat()}"
     )
     result = FactorScreenResult(
-        symbol=symbol,
-        experiment_id=experiment_id,
-        summary=summary,
-        fold_metrics=fold_metrics,
-        importance=importance,
-        ranking=ranking,
-        screening_model=SCREENING_MODEL_NAME,
+        identity=ScreenRunIdentity(
+            symbol=symbol,
+            experiment_id=experiment_id,
+            screening_model=SCREENING_MODEL_NAME,
+        ),
+        tables=ScreenResultTables(
+            summary=summary,
+            fold_metrics=fold_metrics,
+            importance=importance,
+            ranking=ranking,
+            regime_metrics=regime_metrics,
+        ),
+        shap=shap_outputs,
     )
     _persist_screen_artifacts(artifact_store, result, resolved)
     return result
@@ -275,9 +421,50 @@ def _run_ridge_importance(
     )
     ranking = summarize_importance(
         importance,
-        options=StabilityOptions(top_k=config.top_k),
+        options=StabilityOptions(top_k=config.top_k, rank_by="median"),
     )
     return importance, ranking
+
+
+def _run_shap_importance(
+    features: pd.DataFrame,
+    target: pd.Series,
+    config: ScreenConfig,
+) -> ShapScreenOutputs | None:
+    """Compute RF TreeSHAP importance when ``shap`` is installed.
+
+    Parameters
+    ----------
+    features : pandas.DataFrame
+        Predictor matrix.
+    target : pandas.Series
+        Realized-volatility target.
+    config : ScreenConfig
+        Walk-forward / ranking settings.
+
+    Returns
+    -------
+    ShapScreenOutputs or None
+        Fold-wise SHAP table and median ranking, or ``None`` if ``shap``
+        is not installed.
+    """
+    if not shap_available():
+        return None
+
+    importance = shap_importance_folds(
+        features=features,
+        target=target,
+        model_factory=RandomForestVolModel,
+        fold_spec=WalkForwardSpec(
+            n_splits=config.n_splits,
+            embargo_size=config.embargo_size,
+        ),
+    )
+    ranking = summarize_importance(
+        importance,
+        options=StabilityOptions(top_k=config.top_k, rank_by="median"),
+    )
+    return ShapScreenOutputs(importance=importance, ranking=ranking)
 
 
 def _persist_screen_artifacts(
@@ -285,45 +472,129 @@ def _persist_screen_artifacts(
     result: FactorScreenResult,
     config: ScreenConfig,
 ) -> None:
-    """Write metrics, importance, and ranking JSON artifacts."""
-    experiment_id = result.experiment_id
+    """Write screen artifacts (JSON, plots, HTML report)."""
+    tables = result.tables
+    identity = result.identity
+    experiment_id = identity.experiment_id
+
+    _write_screen_json_artifacts(
+        artifact_store=artifact_store,
+        experiment_id=experiment_id,
+        identity=identity,
+        tables=tables,
+        top_feature=result.top_feature(),
+    )
+
+    _write_screen_plots(
+        artifact_store=artifact_store,
+        experiment_id=experiment_id,
+        tables=tables,
+        shap_outputs=result.shap,
+    )
+
+    _write_screen_html_report(
+        artifact_store=artifact_store,
+        experiment_id=experiment_id,
+        config=config,
+        identity=identity,
+        tables=tables,
+    )
+
+
+def _write_screen_json_artifacts(
+    artifact_store: FilesystemArtifactStore,
+    experiment_id: ExperimentId,
+    identity: ScreenRunIdentity,
+    tables: ScreenResultTables,
+    top_feature: str,
+) -> None:
+    """Write JSON artifacts for a factor-screen run."""
     artifact_store.write_json(
         experiment_id,
         "metrics",
-        result.summary.to_dict(orient="records"),
+        tables.summary.to_dict(orient="records"),
     )
     artifact_store.write_json(
         experiment_id,
         "folds",
-        result.fold_metrics.to_dict(orient="records"),
+        tables.fold_metrics.to_dict(orient="records"),
     )
     artifact_store.write_json(
         experiment_id,
         "importance",
-        result.importance.to_dict(orient="records"),
+        tables.importance.to_dict(orient="records"),
     )
     artifact_store.write_json(
         experiment_id,
         "factor_ranking",
-        result.ranking.to_dict(orient="records"),
+        tables.ranking.to_dict(orient="records"),
+    )
+    artifact_store.write_json(
+        experiment_id,
+        "metrics_by_regime",
+        tables.regime_metrics.to_dict(orient="records"),
     )
     artifact_store.write_json(
         experiment_id,
         "screen_meta",
         {
-            "symbol": result.symbol.value,
-            "screening_model": result.screening_model,
-            "top_feature": result.top_feature(),
+            **identity.meta_payload(),
+            "top_feature": top_feature,
         },
     )
+
+
+def _write_screen_plots(
+    artifact_store: FilesystemArtifactStore,
+    experiment_id: ExperimentId,
+    tables: ScreenResultTables,
+    shap_outputs: ShapScreenOutputs | None,
+) -> Path:
+    """Write plot PNGs and return permutation importance plot path."""
     plot_path = artifact_store.experiment_dir(experiment_id) / "importance_plot.png"
-    plot_importance_bars(result.ranking, plot_path)
+    plot_importance_bars(tables.ranking, plot_path)
+
+    if shap_outputs is not None:
+        shap_plot_path = (
+            artifact_store.experiment_dir(experiment_id) / "shap_importance_plot.png"
+        )
+        plot_importance_bars(
+            shap_outputs.ranking,
+            shap_plot_path,
+            options=ImportancePlotOptions(title="TreeSHAP importance (median/mean |SHAP|)"),
+        )
+        artifact_store.write_json(
+            experiment_id,
+            "shap_importance",
+            shap_outputs.importance.to_dict(orient="records"),
+        )
+        artifact_store.write_json(
+            experiment_id,
+            "shap_ranking",
+            shap_outputs.ranking.to_dict(orient="records"),
+        )
+
+    return plot_path
+
+
+def _write_screen_html_report(
+    artifact_store: FilesystemArtifactStore,
+    experiment_id: ExperimentId,
+    config: ScreenConfig,
+    identity: ScreenRunIdentity,
+    tables: ScreenResultTables,
+) -> None:
+    """Build and write the factor-screen HTML report."""
+    plot_path = (
+        artifact_store.experiment_dir(experiment_id) / "importance_plot.png"
+    )
     payload = ScreenReportPayload(
-        symbol=result.symbol.value,
-        experiment_id=result.experiment_id.value,
-        screening_model=result.screening_model,
-        summary=result.summary,
-        ranking=result.ranking,
+        symbol=identity.symbol.value,
+        experiment_id=experiment_id.value,
+        screening_model=identity.screening_model,
+        summary=tables.summary,
+        ranking=tables.ranking,
+        regime_metrics=tables.regime_metrics,
     )
     meta = ReportMeta(
         n_splits=config.n_splits,
@@ -335,3 +606,21 @@ def _persist_screen_artifacts(
         artifact_store.experiment_dir(experiment_id) / "report.html",
         html,
     )
+
+
+def _run_regime_metrics(
+    features: pd.DataFrame,
+    target: pd.Series,
+    config: ScreenConfig,
+) -> pd.DataFrame:
+    """Collect OOS predictions and score locked regimes."""
+    registry = create_default_model_registry()
+    models = registry.create_many(list(HORSE_RACE_MODELS))
+    predictions = collect_walk_forward_predictions(
+        features=features,
+        target=target,
+        models=models,
+        n_splits=config.n_splits,
+        embargo_size=config.embargo_size,
+    )
+    return score_predictions_by_regime(predictions)

@@ -1,4 +1,4 @@
-"""Tests for the model registry and regularized walk-forward smoke."""
+"""Tests for the model registry and walk-forward smoke checks."""
 
 from __future__ import annotations
 
@@ -39,8 +39,26 @@ def _synthetic_design() -> tuple[pd.DataFrame, pd.Series]:
     return features, pd.Series(target, index=index, name="target_rv_cc_5d")
 
 
+def _nonlinear_design() -> tuple[pd.DataFrame, pd.Series]:
+    """Build a design where a thresholded signal drives the target."""
+    index = pd.bdate_range("2020-01-01", periods=N_ROWS)
+    rng = np.random.default_rng(7)
+    signal = rng.normal(0.0, 1.0, N_ROWS)
+    features = pd.DataFrame(
+        {
+            "signal": signal,
+            "noise": rng.normal(0.0, 1.0, N_ROWS),
+            "other": rng.normal(0.0, 1.0, N_ROWS),
+        },
+        index=index,
+    )
+    nonlinear = np.where(signal > 0.0, signal**2, 0.1)
+    target = 0.05 + 0.4 * nonlinear + rng.normal(0.0, 0.01, N_ROWS)
+    return features, pd.Series(target, index=index, name="target_rv_cc_5d")
+
+
 def test_default_registry_contains_expected_models() -> None:
-    """Default registry should expose baseline and regularized model names."""
+    """Default registry should expose baseline, linear, and tree model names."""
     registry = create_default_model_registry()
     names = registry.list_names()
     for expected in (
@@ -50,6 +68,7 @@ def test_default_registry_contains_expected_models() -> None:
         "ridge",
         "lasso",
         "elasticnet",
+        "random_forest",
     ):
         assert expected in names
 
@@ -89,3 +108,26 @@ def test_ridge_beats_mean_on_walk_forward() -> None:
         summary.loc[summary["model"] == "historical_mean", "qlike"].iloc[0]
     )
     assert ridge_qlike < mean_qlike
+
+
+def test_random_forest_beats_mean_on_walk_forward() -> None:
+    """Random forest should beat historical mean on a nonlinear target."""
+    features, target = _nonlinear_design()
+    registry = create_default_model_registry()
+    models = registry.create_many(["historical_mean", "random_forest"])
+
+    fold_metrics = run_walk_forward(
+        features=features,
+        target=target,
+        models=models,
+        n_splits=N_SPLITS,
+        embargo_size=EMBARGO_SIZE,
+    )
+    summary = summarize_walk_forward(fold_metrics, primary_metric="qlike")
+    forest_qlike = float(
+        summary.loc[summary["model"] == "random_forest", "qlike"].iloc[0]
+    )
+    mean_qlike = float(
+        summary.loc[summary["model"] == "historical_mean", "qlike"].iloc[0]
+    )
+    assert forest_qlike < mean_qlike

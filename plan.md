@@ -402,11 +402,15 @@ Completed:
 - Factor screening use-case, stability ranking, importance plot
 - First HTML research report via `vip screen`
 
-### Milestone 5 — Nonlinear & robustness
-- LightGBM/RF optional path; SHAP summary  
-- Cross-asset features (VIX); multi-symbol batch  
-- Stress: COVID / 2022 regimes in evaluation slices  
-**Exit:** “what works when” section in report
+### Milestone 5 — Nonlinear & robustness — DONE (2026-07-29)
+Completed:
+- RandomForest tree model + registry wiring
+- Median/capped permutation importance aggregation
+- VIX cross-asset features with backward asof join + leakage tests
+- Regime-sliced OOS metrics (COVID crash, 2022 bear, full sample)
+- Optional TreeSHAP attribution (behind `[nonlinear]` extra)
+- "What works when" section in HTML report
+- Multi-symbol batch screening (`vip screen-batch`)
 
 ### Milestone 6 — Platform polish (portfolio-ready)
 - Full CLI: ingest → features → experiment → report  
@@ -453,13 +457,17 @@ Completed:
 ### Milestone 2 — Features & targets — DONE (2026-07-28)
 ### Milestone 3 — Baselines & evaluation — DONE (2026-07-28)
 ### Milestone 4 — Factor intelligence — DONE (2026-07-28)
+### Milestone 5 — Nonlinear & robustness — DONE (2026-07-29)
 
-Completed (M4):
-- Ridge/Lasso/ElasticNet with train-only scaling
-- Walk-forward permutation importance (ΔQLIKE) and factor stability tables
-- `vip screen` + HTML report under `data/artifacts/`
+Completed (M5):
+- RandomForest + optional TreeSHAP (behind `.[nonlinear]`)
+- Median ΔQLIKE importance ranking (spike-robust)
+- VIX cross-asset features (`vix_level`, `vix_chg_1d`)
+- COVID / 2022 regime-sliced metrics in artifacts + HTML
+- "What works when" best-model-per-regime table in report
+- `vip screen-batch --symbols SPY,QQQ,IWM`
 
-Next: Milestone 5 — Nonlinear & robustness
+Next: Milestone 6 — Platform polish
 
 ## Suggested Flagship Demo Narrative
 

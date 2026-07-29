@@ -188,3 +188,83 @@ def _score_model_on_fold(
         "train_size": int(fold.train_size()),
         "test_size": int(fold.test_size()),
     }
+
+
+def collect_walk_forward_predictions(
+    features: pd.DataFrame,
+    target: pd.Series,
+    models: dict[str, _SupportsFitPredict],
+    n_splits: int,
+    embargo_size: int,
+) -> pd.DataFrame:
+    """Collect out-of-sample predictions across expanding folds.
+
+    Parameters
+    ----------
+    features : pandas.DataFrame
+        Feature matrix indexed by session date.
+    target : pandas.Series
+        Target series aligned to ``features``.
+    models : dict of str to model
+        Mapping of model name to ``fit`` / ``predict`` objects.
+        Each model is refit on every fold.
+    n_splits : int
+        Number of expanding test folds.
+    embargo_size : int
+        Embargo length in rows between train and test.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Long-form table with columns:
+        ``model``, ``fold_id``, ``y_true``, ``y_pred``, indexed by
+        session date (test rows only; may repeat dates across models).
+
+    Raises
+    ------
+    DataValidationError
+        If inputs are empty, misaligned, or no models are provided.
+    """
+    feature_frame, target_series = _align_features_and_target(features, target)
+    if not models:
+        raise DataValidationError("At least one model is required.")
+
+    folds = generate_expanding_folds(
+        index=feature_frame.index,
+        n_splits=n_splits,
+        embargo_size=embargo_size,
+    )
+    frames = [
+        _predictions_for_model_on_folds(feature_frame, target_series, name, model, folds)
+        for name, model in models.items()
+    ]
+    return pd.concat(frames, axis=0)
+
+
+def _predictions_for_model_on_folds(
+    features: pd.DataFrame,
+    target: pd.Series,
+    model_name: str,
+    model: _SupportsFitPredict,
+    folds: list[WalkForwardFold],
+) -> pd.DataFrame:
+    """Fit/predict one model on every fold and stack test rows."""
+    pieces: list[pd.DataFrame] = []
+    for fold in folds:
+        x_train = features.loc[fold.train_index]
+        y_train = target.loc[fold.train_index]
+        x_test = features.loc[fold.test_index]
+        y_test = target.loc[fold.test_index]
+        model.fit(x_train, y_train)
+        y_pred = model.predict(x_test)
+        piece = pd.DataFrame(
+            {
+                "model": model_name,
+                "fold_id": int(fold.fold_id),
+                "y_true": y_test.to_numpy(dtype=float),
+                "y_pred": y_pred.to_numpy(dtype=float),
+            },
+            index=y_test.index,
+        )
+        pieces.append(piece)
+    return pd.concat(pieces, axis=0)

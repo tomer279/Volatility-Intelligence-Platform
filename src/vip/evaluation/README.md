@@ -9,7 +9,9 @@ Score volatility forecasts and run time-safe walk-forward evaluation.
 - `walk_forward.py` - Fit/predict/score loop across folds.
 - `comparison.py` - Aggregate comparison tables.
 - `importance.py` - Walk-forward permutation importance under QLIKE.
-- `stability.py` - Mean/std importance and top-k hit rate across folds.
+- `stability.py` - Mean/median importance and top-k hit rate across folds.
+- `regimes.py` - Locked COVID/2022 windows and regime-sliced OOS metrics.
+- `shap_importance.py` - Optional TreeSHAP importance (RF; requires `shap`).
 
 ## Key APIs
 - `mse(y_true, y_pred)` - Mean squared error.
@@ -23,6 +25,10 @@ Score volatility forecasts and run time-safe walk-forward evaluation.
 - `WalkForwardSpec` / `ImportanceOptions` - Nested settings (keeps call sites ≤5 params).
 - `summarize_importance(importance, options=None)` - Ranked factor stability table.
 - `StabilityOptions` - Top-k settings for hit-rate stability.
+- `collect_walk_forward_predictions(...)` - Dated OOS prediction panel for regime scoring.
+- `score_predictions_by_regime(predictions)` - QLIKE/MSE/MAE by regime × model.
+- `shap_importance_folds(...)` - mean |SHAP| on test rows per fold (train-only fits).
+- Install optional deps: `pip install -e ".[nonlinear]"`.
 
 ## Research defaults
 - Primary metric: QLIKE (lower is better)
@@ -36,3 +42,4 @@ Score volatility forecasts and run time-safe walk-forward evaluation.
 - Models are refit on every fold; do not reuse test labels inside `fit`.
 - Permutation importance shuffles **test** columns only; the model is not refit inside a shuffle.
 - Importance = permuted QLIKE − baseline QLIKE (higher means more important).
+- Ranking aggregate defaults to **median** ΔQLIKE across folds (mean still reported); optional `delta_cap` clips per-shuffle deltas.

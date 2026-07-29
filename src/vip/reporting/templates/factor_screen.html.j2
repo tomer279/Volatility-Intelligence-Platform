@@ -35,7 +35,7 @@
     <li>Primary metric: <code>{{ primary_metric }}</code></li>
     <li>Walk-forward: expanding, n_splits={{ n_splits }}, embargo={{ embargo_size }}</li>
     <li>Screening model for importance: <code>{{ screening_model }}</code></li>
-    <li>Importance: mean ΔQLIKE under test-column permutation</li>
+    <li>Importance: median ΔQLIKE under test-column permutation (mean reported too)</li>
   </ul>
 
   <h2>Model horse-race</h2>
@@ -60,27 +60,61 @@
     </tbody>
   </table>
 
-  <h2>Ranked factors</h2>
-  <table>
-    <thead>
-      <tr>
-        <th>feature</th>
-        <th>mean_importance</th>
-        <th>std_importance</th>
-        <th>top_k_hit_rate</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for row in factor_rows %}
-      <tr>
-        <td>{{ row.feature }}</td>
-        <td>{{ "%.6f"|format(row.mean_importance) }}</td>
-        <td>{{ "%.6f"|format(row.std_importance) }}</td>
-        <td>{{ "%.3f"|format(row.top_k_hit_rate) }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+<h2>Ranked factors</h2>
+<table>
+  <thead>
+    <tr>
+      <th>feature</th>
+      <th>median_importance</th>
+      <th>mean_importance</th>
+      <th>std_importance</th>
+      <th>top_k_hit_rate</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in factor_rows %}
+    <tr>
+      <td>{{ row.feature }}</td>
+      <td>{{ "%.6f"|format(row.median_importance) }}</td>
+      <td>{{ "%.6f"|format(row.mean_importance) }}</td>
+      <td>{{ "%.6f"|format(row.std_importance) }}</td>
+      <td>{{ "%.3f"|format(row.top_k_hit_rate) }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>What works when</h2>
+<table>
+  <thead>
+    <tr>
+      <th>regime</th>
+      <th>best_model</th>
+      <th>qlike</th>
+      <th>mse</th>
+      <th>mae</th>
+      <th>n_obs</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in regime_best_rows %}
+    <tr>
+      <td>{{ row.regime }}</td>
+      <td>{{ row.model }}</td>
+      <td>
+        {% if row.qlike is not none %}{{ "%.6f"|format(row.qlike) }}{% else %}n/a{% endif %}
+      </td>
+      <td>
+        {% if row.mse is not none %}{{ "%.6f"|format(row.mse) }}{% else %}n/a{% endif %}
+      </td>
+      <td>
+        {% if row.mae is not none %}{{ "%.6f"|format(row.mae) }}{% else %}n/a{% endif %}
+      </td>
+      <td>{{ row.n_obs }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
 
   <h2>Importance plot</h2>
   {% if importance_image_base64 %}

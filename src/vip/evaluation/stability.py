@@ -3,7 +3,7 @@
 Exports
 -------
 StabilityOptions
-    Top-k settings for hit-rate calculations.
+    Top-k and ranking aggregate settings.
 summarize_importance
     Aggregate fold-wise importance into a ranked factor table.
 top_k_hit_rate
@@ -13,13 +13,16 @@ top_k_hit_rate
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 
 import pandas as pd
 
 from vip.domain.errors import DataValidationError
 
 DEFAULT_TOP_K = 3
+DEFAULT_RANK_BY: Literal["median", "mean"] = "median"
 REQUIRED_COLUMNS = ("fold_id", "feature", "importance")
+RankBy = Literal["median", "mean"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -30,6 +33,9 @@ class StabilityOptions:
     ----------
     top_k : int, default 3
         Rank threshold used for top-k hit-rate.
+    rank_by : {"median", "mean"}, default "median"
+        Column used to sort the factor ranking. Median is preferred
+        because a single fold's QLIKE spike cannot dominate the order.
 
     Methods
     -------
@@ -40,11 +46,14 @@ class StabilityOptions:
     """
 
     top_k: int = DEFAULT_TOP_K
+    rank_by: RankBy = DEFAULT_RANK_BY
 
     def validate(self) -> None:
         """Raise ``DataValidationError`` when options are invalid."""
         if self.top_k < 1:
             raise DataValidationError("top_k must be at least 1.")
+        if self.rank_by not in ("median", "mean"):
+            raise DataValidationError("rank_by must be 'median' or 'mean'.")
 
     def describe(self) -> str:
         """Return a short human-readable summary.
@@ -54,7 +63,7 @@ class StabilityOptions:
         str
             Compact description of stability options.
         """
-        return f"top_k={self.top_k}"
+        return f"top_k={self.top_k}, rank_by={self.rank_by}"
 
 
 def summarize_importance(
@@ -69,15 +78,15 @@ def summarize_importance(
         Long-form output from ``permutation_importance_folds`` with
         columns ``fold_id``, ``feature``, ``importance``.
     options : StabilityOptions or None, default None
-        Top-k settings (defaults used when ``None``).
+        Top-k and ranking settings (defaults used when ``None``).
 
     Returns
     -------
     pandas.DataFrame
         Ranked table with columns:
-        ``feature``, ``mean_importance``, ``std_importance``,
-        ``n_folds``, ``top_k_hit_rate``, sorted by mean importance
-        descending.
+        ``feature``, ``mean_importance``, ``median_importance``,
+        ``std_importance``, ``n_folds``, ``top_k_hit_rate``,
+        sorted by ``rank_by`` descending.
 
     Raises
     ------
@@ -89,15 +98,24 @@ def summarize_importance(
     _validate_importance_frame(importance)
 
     grouped = importance.groupby("feature", sort=False)["importance"]
-    summary = grouped.agg(mean_importance="mean", std_importance="std", n_folds="count")
+    summary = grouped.agg(
+        mean_importance="mean",
+        median_importance="median",
+        std_importance="std",
+        n_folds="count",
+    )
     summary = summary.reset_index()
     summary["std_importance"] = summary["std_importance"].fillna(0.0)
 
     hit_rates = top_k_hit_rate(importance, resolved)
     summary = summary.merge(hit_rates, on="feature", how="left")
     summary["top_k_hit_rate"] = summary["top_k_hit_rate"].fillna(0.0)
+
+    rank_column = (
+        "median_importance" if resolved.rank_by == "median" else "mean_importance"
+    )
     summary = summary.sort_values(
-        by=["mean_importance", "feature"],
+        by=[rank_column, "feature"],
         ascending=[False, True],
     ).reset_index(drop=True)
     return summary

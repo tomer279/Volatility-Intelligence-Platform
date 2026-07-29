@@ -7,7 +7,10 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from vip.application.build_feature_matrix import build_and_persist_feature_matrix
+from vip.application.build_feature_matrix import (
+    build_and_persist_feature_matrix,
+    FeatureMatrixExtras
+)
 from vip.domain.value_objects import Symbol
 from vip.persistence.feature_matrix_store import ParquetFeatureMatrixStore
 from vip.persistence.parquet_store import ParquetMarketDataStore
@@ -55,3 +58,20 @@ def test_build_and_persist_feature_matrix(tmp_path: Path) -> None:
     loaded = feature_store.load(symbol)
     assert "target_rv_cc_5d" in loaded.columns
     assert not loaded.isna().any().any()
+
+def test_build_with_vix_increases_feature_count(tmp_path: Path) -> None:
+    market_store = ParquetMarketDataStore(tmp_path / "raw")
+    feature_store = ParquetFeatureMatrixStore(tmp_path / "processed")
+    market_store.save(Symbol("SPY"), _synthetic_ohlcv())
+    market_store.save(Symbol("VIX"), _synthetic_ohlcv())  # synthetic stand-in
+
+    result = build_and_persist_feature_matrix(
+        market_store=market_store,
+        feature_store=feature_store,
+        symbol=Symbol("SPY"),
+        horizon_days=5,
+        extras=FeatureMatrixExtras(include_vix=True),
+    )
+    assert result.feature_count == 10  # 8 own-symbol + 2 VIX
+    loaded = feature_store.load(Symbol("SPY"))
+    assert {"vix_level", "vix_chg_1d"} <= set(loaded.columns)

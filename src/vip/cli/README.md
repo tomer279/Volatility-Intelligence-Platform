@@ -12,6 +12,7 @@ It should remain a thin interface layer that delegates work to application/use-c
 - `commands/evaluate.py` - Registers the `vip evaluate` command.
 - `commands/screen.py` - Registers the `vip screen` command.
 - `commands/__init__.py` - Re-exports command registration helpers.
+- `commands/screen_batch.py` - Registers the `vip screen-batch` command.
 
 ## Key APIs
 - `app` - Typer application referenced by the `pyproject.toml` script entrypoint.
@@ -22,6 +23,8 @@ It should remain a thin interface layer that delegates work to application/use-c
 - `evaluate` command - Runs baseline walk-forward evaluation and prints a comparison table.
 - `screen` command - Runs factor screening (horse-race + Ridge importance) and writes an HTML report.
 - `ingest_command(app)` / `features_command(app)` / `evaluate_command(app)` / `screen_command(app)` - Command registrars.
+- `screen-batch` command - Runs multi-symbol screening with `--skip-ingest` / `--skip-features` flags.
+- `screen_batch_command(app)` - Command registrar.
 
 ## Dependencies
 - Depends on: `typer`, config loader, orchestration logging, application use-cases, persistence stores.
@@ -40,6 +43,8 @@ From an installed editable environment:
 - `vip screen --help`
 - `vip screen --symbol SPY`
 - `vip screen --symbol SPY --n-splits 5 --embargo 5 --n-repeats 5 --top-k 3`
+- `vip screen-batch --symbols SPY,QQQ,IWM`
+- `vip screen-batch --symbols SPY,QQQ --skip-ingest --skip-features`
 
 Future:
 

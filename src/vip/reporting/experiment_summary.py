@@ -38,6 +38,8 @@ DEFAULT_CAVEATS = (
     "Rankings can be unstable for weak factors and may shift across regimes.",
     "Results are for a single liquid ETF sample (SPY MVP) and should not be "
     "over-generalized.",
+    "QLIKE permutation deltas can spike on collinear HAR lags; rankings use "
+    "median importance across folds to limit single-fold domination.",
 )
 
 
@@ -110,6 +112,9 @@ class ScreenReportPayload:
         Model horse-race table.
     ranking : pandas.DataFrame
         Factor ranking table.
+    regime_metrics : pandas.DataFrame
+        Regime-sliced out-of-sample metrics with columns like
+        ``regime``, ``model``, ``n_obs``, ``qlike``, ``mse``, and ``mae``.
 
     Methods
     -------
@@ -124,6 +129,7 @@ class ScreenReportPayload:
     screening_model: str
     summary: pd.DataFrame
     ranking: pd.DataFrame
+    regime_metrics : pd.DataFrame
 
     def model_count(self) -> int:
         """Return the number of model rows.
@@ -210,6 +216,9 @@ class ReportTables:
         Horse-race table rows.
     factor_rows : list of dict
         Factor-ranking table rows.
+    regime_best_rows : list of dict
+        One “best model” row per regime, suitable for the "What works when"
+        table in the HTML report.
 
     Methods
     -------
@@ -221,6 +230,7 @@ class ReportTables:
 
     model_rows: list[dict[str, object]]
     factor_rows: list[dict[str, object]]
+    regime_best_rows: list[dict[str, object]]
 
     def model_count(self) -> int:
         """Return the number of model rows.
@@ -297,7 +307,7 @@ class FactorScreenReportContext:
     methodology : ReportMeta
         Locked target/metric/walk-forward fields.
     tables : ReportTables
-        Model horse-race and factor-ranking rows.
+        Model horse-race, factor ranking, and regime-best rows.
     extras : ReportExtras
         Importance image and caveats.
 
@@ -334,6 +344,7 @@ class FactorScreenReportContext:
                 "factor_rows": self.tables.factor_rows,
                 "importance_image_base64": self.extras.importance_image_base64,
                 "caveats": list(self.extras.caveats),
+                "regime_best_rows": self.tables.regime_best_rows,
             }
         )
         return payload
@@ -363,7 +374,7 @@ def build_factor_screen_context(
     Parameters
     ----------
     payload : ScreenReportPayload
-        Minimal screen outputs.
+        Must include ``regime_metrics`` (used for the "What works when" section).
     plot_path : pathlib.Path or None
         Optional path to ``importance_plot.png``.
     meta : ReportMeta
@@ -380,6 +391,7 @@ def build_factor_screen_context(
         If ``meta`` is invalid.
     """
     meta.validate()
+    regime_best_rows = _best_model_by_regime_rows(payload.regime_metrics)
     return FactorScreenReportContext(
         identity=ReportIdentity(
             symbol=payload.symbol,
@@ -391,6 +403,7 @@ def build_factor_screen_context(
         tables=ReportTables(
             model_rows=_frame_records(payload.summary),
             factor_rows=_frame_records(payload.ranking),
+            regime_best_rows=regime_best_rows,
         ),
         extras=ReportExtras(
             importance_image_base64=_encode_png(plot_path),
@@ -403,6 +416,42 @@ def _frame_records(frame: pd.DataFrame) -> list[dict[str, object]]:
     """Convert a DataFrame to JSON-like row mappings."""
     return frame.to_dict(orient="records")
 
+
+def _best_model_by_regime_rows(
+        regime_metrics: pd.DataFrame
+    ) -> list[dict[str, object]]:
+    """Pick the best (min qlike) model per regime; keep empty-regime placeholder."""
+    required = {"regime", "model", "n_obs", "qlike", "mse", "mae"}
+    missing = required.difference(regime_metrics.columns)
+    if missing:
+        missing_text = ", ".join(sorted(missing))
+        raise DataValidationError(
+            f"regime_metrics missing required columns: {missing_text}."
+        )
+
+    # keep regime order stable (full_sample then covid then bear)
+    regime_order = list(regime_metrics["regime"].drop_duplicates())
+
+    rows: list[dict[str, object]] = []
+    for regime in regime_order:
+        group = regime_metrics[regime_metrics["regime"] == regime]
+
+        valid = group.dropna(subset=["qlike"])
+        if not valid.empty:
+            best = valid.sort_values("qlike", ascending=True).iloc[0]
+        else:
+            # empty slice placeholder: still show something
+            best = group.iloc[0]
+
+        rows.append({
+            "regime": str(regime),
+            "model": str(best["model"]),
+            "qlike": None if pd.isna(best["qlike"]) else float(best["qlike"]),
+            "mse": None if pd.isna(best["mse"]) else float(best["mse"]),
+            "mae": None if pd.isna(best["mae"]) else float(best["mae"]),
+            "n_obs": int(best["n_obs"]),
+        })
+    return rows
 
 def _encode_png(plot_path: Path | None) -> str | None:
     """Base64-encode a PNG file when present."""

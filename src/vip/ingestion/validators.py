@@ -68,6 +68,7 @@ def validate_and_normalize_ohlcv(frame: pd.DataFrame) -> pd.DataFrame:
         normalized = normalized.sort_index()
 
     _coerce_required_numeric_columns(normalized)
+    normalized = normalized.dropna(subset=list(REQUIRED_COLUMNS))
     validate_no_missing_required_values(normalized)
     validate_price_volume_constraints(normalized)
 

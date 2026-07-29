@@ -23,11 +23,12 @@ def _toy_importance() -> pd.DataFrame:
 
 
 def test_summarize_importance_ranks_signal_first() -> None:
-    """Higher mean-importance features should appear first."""
+    """Higher median-importance features should appear first by default."""
     summary = summarize_importance(_toy_importance())
     assert list(summary["feature"]) == ["signal", "noise"]
-    assert float(summary.iloc[0]["mean_importance"]) > float(
-        summary.iloc[1]["mean_importance"]
+    assert "median_importance" in summary.columns
+    assert float(summary.iloc[0]["median_importance"]) > float(
+        summary.iloc[1]["median_importance"]
     )
 
 

@@ -37,9 +37,11 @@ def test_plot_importance_bars_writes_png(tmp_path: Path) -> None:
 
 
 def test_plot_importance_bars_missing_columns_raise(tmp_path: Path) -> None:
-    """Plot helper should require feature/mean_importance columns."""
-    broken = _toy_ranking().drop(columns=["mean_importance"])
-    with pytest.raises(DataValidationError, match="missing required columns"):
+    """Plot helper should require an importance column."""
+    broken = _toy_ranking().drop(columns=["mean_importance"], errors="ignore")
+    if "median_importance" in broken.columns:
+        broken = broken.drop(columns=["median_importance"])
+    with pytest.raises(DataValidationError, match="missing importance columns"):
         plot_importance_bars(broken, tmp_path / "out.png")
 
 

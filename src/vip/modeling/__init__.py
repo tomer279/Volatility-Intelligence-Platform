@@ -16,6 +16,10 @@ LassoModel
     Lasso regression adapter.
 ElasticNetModel
     Elastic-net regression adapter.
+TreeVolModel
+    Unscaled tree regressor adapter.
+RandomForestVolModel
+    Random-forest volatility adapter.
 ModelSpec
     Metadata and factory for one registered model.
 ModelRegistry
@@ -36,6 +40,7 @@ from vip.modeling.regularization import (
     RidgeModel,
     ScaledLinearModel,
 )
+from vip.modeling.tree_models import RandomForestVolModel, TreeVolModel
 
 __all__ = [
     "ElasticNetModel",
@@ -45,7 +50,9 @@ __all__ = [
     "LassoModel",
     "ModelRegistry",
     "ModelSpec",
+    "RandomForestVolModel",
     "RidgeModel",
     "ScaledLinearModel",
+    "TreeVolModel",
     "create_default_model_registry",
 ]

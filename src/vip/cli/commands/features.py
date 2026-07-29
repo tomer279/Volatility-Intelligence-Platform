@@ -12,7 +12,10 @@ from pathlib import Path
 
 import typer
 
-from vip.application.build_feature_matrix import build_and_persist_feature_matrix
+from vip.application.build_feature_matrix import (
+    FeatureMatrixExtras,
+    build_and_persist_feature_matrix,
+)
 from vip.config import load_config, resolve_project_root
 from vip.domain.value_objects import Symbol
 from vip.persistence.feature_matrix_store import ParquetFeatureMatrixStore
@@ -31,14 +34,15 @@ def features_command(app: typer.Typer) -> None:
     @app.command("features")
     def features(
         symbol: str | None = typer.Option(
-            None,
-            "--symbol",
-            help="Ticker symbol override (defaults to config symbol).",
+            None, "--symbol", help="Ticker symbol override."
         ),
         horizon: int | None = typer.Option(
-            None,
-            "--horizon",
-            help="Forward target horizon in trading days (defaults to config).",
+            None, "--horizon", help="Horizon override in days."
+        ),
+        with_vix: bool = typer.Option(
+            False,
+            "--with-vix",
+            help="Join VIX level/change features (requires vip ingest --symbol VIX).",
         ),
     ) -> None:
         """Build and persist a feature matrix from ingested OHLCV data."""
@@ -69,6 +73,7 @@ def features_command(app: typer.Typer) -> None:
             feature_store=feature_store,
             symbol=effective_symbol,
             horizon_days=horizon_days,
+            extras=FeatureMatrixExtras(include_vix=with_vix),
         )
 
         typer.echo("Feature matrix build completed.")

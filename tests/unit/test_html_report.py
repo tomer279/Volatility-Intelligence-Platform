@@ -27,10 +27,21 @@ def _payload() -> ScreenReportPayload:
     ranking = pd.DataFrame(
         {
             "feature": ["rv_cc_5d", "rv_cc_1d"],
+            "median_importance": [0.4, 0.2],
             "mean_importance": [0.4, 0.2],
             "std_importance": [0.05, 0.03],
             "top_k_hit_rate": [1.0, 0.5],
             "n_folds": [3, 3],
+        }
+    )
+    regime_metrics = pd.DataFrame(
+        {
+            "regime": ["full_sample", "covid_crash", "bear_2022"],
+            "model": ["ridge", "har_rv_ols", "ridge"],
+            "n_obs": [10, 3, 4],
+            "qlike": [0.10, 0.08, 0.12],
+            "mse": [0.01, 0.009, 0.011],
+            "mae": [0.05, 0.04, 0.06],
         }
     )
     return ScreenReportPayload(
@@ -39,6 +50,7 @@ def _payload() -> ScreenReportPayload:
         screening_model="ridge",
         summary=summary,
         ranking=ranking,
+        regime_metrics=regime_metrics,   # <-- add
     )
 
 
@@ -56,6 +68,7 @@ def test_render_factor_screen_report_contains_sections() -> None:
         "Locked methodology",
         "Model horse-race",
         "Ranked factors",
+        "What works when",
         "Caveats",
         "target_rv_cc_5d",
         "ridge",

@@ -63,17 +63,20 @@ def test_screen_factors_persists_artifacts(tmp_path: Path) -> None:
         ),
     )
 
-    experiment_dir = tmp_path / "artifacts" / result.experiment_id.as_path_key()
-    assert result.screening_model == "ridge"
-    assert result.top_feature() in set(result.ranking["feature"])
-    assert not result.summary.empty
-    assert set(result.summary["model"]) == {"har_rv_ols", "ridge", "lasso"}
+    experiment_dir = (
+        tmp_path / "artifacts" / result.identity.experiment_id.as_path_key()
+    )
+    assert result.identity.screening_model == "ridge"
+    assert result.top_feature() in set(result.tables.ranking["feature"])
+    assert not result.tables.summary.empty
+    assert set(result.tables.summary["model"]) == {"har_rv_ols", "ridge", "lasso"}
     for name in (
         "metrics.json",
         "folds.json",
         "importance.json",
         "factor_ranking.json",
+        "metrics_by_regime.json",
         "screen_meta.json",
-        "importance_plot.png"
+        "importance_plot.png",
     ):
         assert (experiment_dir / name).is_file()

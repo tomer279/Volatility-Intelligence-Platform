@@ -85,3 +85,15 @@ def test_importance_schema() -> None:
     }
     assert set(importance["feature"]) == {SIGNAL_COLUMN, NOISE_COLUMN}
     assert importance["fold_id"].nunique() == 3
+
+def test_delta_cap_limits_fold_importance_magnitude() -> None:
+    """With a tiny cap, fold importances should stay within the cap."""
+    features, target = _synthetic_signal_design()
+    capped = permutation_importance_folds(
+        features=features,
+        target=target,
+        model_factory=RidgeModel,
+        fold_spec=WalkForwardSpec(n_splits=3, embargo_size=5),
+        options=ImportanceOptions(n_repeats=2, random_seed=0, delta_cap=0.01),
+    )
+    assert float(capped["importance"].abs().max()) <= 0.01 + 1e-12

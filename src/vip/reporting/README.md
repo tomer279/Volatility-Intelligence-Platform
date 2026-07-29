@@ -15,5 +15,5 @@ Render reproducible research memos from experiment artifacts.
 ## Notes
 
 - Reports should include methodology caveats, not only metrics tables.
-
+- The "What works when" section shows the best model per regime (min QLIKE).
 - Keep CLI thin; call reporting from application use-cases.

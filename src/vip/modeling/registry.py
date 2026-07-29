@@ -19,6 +19,7 @@ from typing import Any
 from vip.domain.errors import DataValidationError
 from vip.modeling.baselines import EwmaModel, HarRvOlsModel, HistoricalMeanModel
 from vip.modeling.regularization import ElasticNetModel, LassoModel, RidgeModel
+from vip.modeling.tree_models import RandomForestVolModel
 
 ModelFactory = Callable[[], Any]
 
@@ -216,6 +217,13 @@ def create_default_model_registry() -> ModelRegistry:
             name="elasticnet",
             factory=ElasticNetModel,
             description="Elastic-net regression with train-only StandardScaler.",
+        )
+    )
+    registry.register(
+        ModelSpec(
+            name="random_forest",
+            factory=RandomForestVolModel,
+            description="Random forest on unscaled features.",
         )
     )
     return registry

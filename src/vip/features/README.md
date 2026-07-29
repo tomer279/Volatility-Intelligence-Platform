@@ -12,6 +12,7 @@ Build predictive features and realized-volatility targets from canonical daily O
 - `volume_features.py` - Volume z-score features.
 - `registry.py` - Named feature-family registry and default Milestone 2 set.
 - `pipeline.py` - End-to-end feature-matrix builder.
+- `cross_asset.py` - VIX level / 1d change joined onto the primary calendar.
 
 ## Key APIs
 - `daily_log_returns(close)` - Daily log returns from close prices.
@@ -23,7 +24,8 @@ Build predictive features and realized-volatility targets from canonical daily O
 - `build_volume_features(ohlcv)` - `volume_z_21d`.
 - `create_default_registry()` - Registry with returns/har/range/volume.
 - `FeatureRegistry.build_all(ohlcv, names=None)` - Assemble selected feature families.
-- `build_feature_matrix(ohlcv, horizon_days=5, ...)` - Features + target, NaNs dropped.
+- `build_vix_features(primary_index, vix_ohlcv)` - `vix_level`, `vix_chg_1d` via backward asof join.
+- `build_feature_matrix(ohlcv, horizon_days=5, ..., vix_ohlcv=None)` - Features + target (+ optional VIX), NaNs dropped.
 
 ## Research contract
 - Features at session `t` use information with timestamp `<= t`.
@@ -45,8 +47,12 @@ Build predictive features and realized-volatility targets from canonical daily O
 | `range_1d` | range | `(high_t - low_t) / close_t` |
 | `range_5d_mean` | range | Mean of `range_1d` over last 5 sessions ending at `t` |
 | `volume_z_21d` | volume | `(volume_t - mean_21) / std_21` trailing window ending at `t` |
+| `vix_level` | cross_asset | VIX close as-of session `t` (backward `merge_asof`) |
+| `vix_chg_1d` | cross_asset | VIX close pct-change as-of `t` (computed on VIX calendar, then asof-joined) |
 
 ## Notes
 - Source OHLCV should be valid daily bars; `build_feature_matrix` re-validates via ingestion validators.
 - HAR columns are **trailing** features; do not confuse them with the forward target `target_rv_cc_5d`.
 - Output path for persisted matrices (Milestone 2 later steps): `data/processed/{SYMBOL}/features.parquet`.
+- VIX is optional: pass `vix_ohlcv` into the pipeline, or use `vip features --with-vix` after `vip ingest --symbol VIX`.
+- Cross-asset joins never use future VIX prints (`direction="backward"` only).

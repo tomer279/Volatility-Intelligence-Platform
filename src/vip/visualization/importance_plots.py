@@ -24,7 +24,9 @@ from vip.domain.errors import DataValidationError
 from vip.visualization.styles import apply_research_style, reset_research_style
 
 REQUIRED_COLUMNS = ("feature", "mean_importance")
-DEFAULT_TITLE = "Permutation importance (mean ΔQLIKE)"
+REQUIRED_FEATURE_COLUMN = "feature"
+IMPORTANCE_COLUMN_CANDIDATES = ("median_importance", "mean_importance")
+DEFAULT_TITLE = "Permutation importance (median ΔQLIKE)"
 DEFAULT_TOP_N = 20
 DEFAULT_FIGURE_WIDTH = 8.0
 DEFAULT_FIGURE_HEIGHT = 4.5
@@ -115,23 +117,32 @@ def plot_importance_bars(
     return output_path
 
 
+def _resolve_importance_column(ranking: pd.DataFrame) -> str:
+    """Return the preferred importance column present in ``ranking``."""
+    for column in IMPORTANCE_COLUMN_CANDIDATES:
+        if column in ranking.columns:
+            return column
+    raise DataValidationError(
+        "ranking table missing importance columns: "
+        "median_importance or mean_importance."
+    )
+
+
 def _prepare_ranking(ranking: pd.DataFrame, top_n: int) -> pd.DataFrame:
     """Validate and select the top features for plotting."""
     if ranking.empty:
         raise DataValidationError("ranking table must be non-empty.")
-    missing = [name for name in REQUIRED_COLUMNS if name not in ranking.columns]
-    if missing:
-        missing_text = ", ".join(missing)
-        raise DataValidationError(
-            f"ranking table missing required columns: {missing_text}."
-        )
+    if REQUIRED_FEATURE_COLUMN not in ranking.columns:
+        raise DataValidationError("ranking table missing required column: feature.")
+    importance_column = _resolve_importance_column(ranking)
     ordered = ranking.sort_values(
-        by="mean_importance",
+        by=importance_column,
         ascending=False,
         kind="mergesort",
     ).head(top_n)
-    # barh draws bottom→top; reverse so the top feature appears at the top.
-    return ordered.iloc[::-1]
+    frame = ordered.iloc[::-1].copy()
+    frame["__plot_importance__"] = frame[importance_column]
+    return frame
 
 
 def _render_and_save(
@@ -144,8 +155,12 @@ def _render_and_save(
     figure, axes = plt.subplots(
         figsize=(options.figure_width, options.figure_height),
     )
-    axes.barh(frame["feature"], frame["mean_importance"], color="#4C78A8")
-    axes.set_xlabel("Mean importance (ΔQLIKE)")
+    axes.barh(
+        frame["feature"],
+        frame["__plot_importance__"],
+        color="#4C78A8",
+    )
+    axes.set_xlabel("Importance")
     axes.set_ylabel("Feature")
     axes.set_title(options.title)
     figure.tight_layout()

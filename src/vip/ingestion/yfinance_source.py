@@ -18,6 +18,16 @@ from vip.domain.value_objects import DateRange, Symbol
 from vip.ingestion.validators import validate_and_normalize_ohlcv
 
 
+YAHOO_TICKER_ALIASES: dict[str, str] = {
+    "VIX": "^VIX",
+}
+
+
+def _yahoo_ticker(symbol: Symbol) -> str:
+    """Map a VIP storage symbol to the Yahoo Finance ticker."""
+    return YAHOO_TICKER_ALIASES.get(symbol.value, symbol.value)
+
+
 class YFinanceMarketDataSource:
     """Fetch daily OHLCV data from Yahoo Finance.
 
@@ -56,7 +66,7 @@ class YFinanceMarketDataSource:
 
         try:
             raw_frame = yf.download(
-                symbol.value,
+                _yahoo_ticker(symbol),
                 start=start,
                 end=end,
                 interval="1d",

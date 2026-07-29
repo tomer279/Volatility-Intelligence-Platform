@@ -8,8 +8,10 @@ CLI commands should call these functions rather than embedding business logic.
 - `ingest_market_data.py` - Fetch, validate, and persist daily OHLCV market data.
 - `build_feature_matrix.py` - Load OHLCV, build features/target, and persist the matrix.
 - `run_baseline_experiment.py` - Walk-forward baseline evaluation and artifact persistence.
-- `__init__.py` - Public application exports.
+- `screen_factors.py` - Factor screen (horse-race, importance, HTML report).
 - `screen_batch.py` - Multi-symbol batch screening with ingest/features caching.
+- `run_study.py` - Composite ingest → features → screen for one or more symbols.
+- `__init__.py` - Public application exports.
 
 ## Key APIs
 - `ingest_market_data(source, store, symbol, date_range)` - Run the ingestion pipeline.
@@ -23,6 +25,9 @@ CLI commands should call these functions rather than embedding business logic.
 - `FeatureMatrixExtras` - Optional settings (`feature_names`, `include_vix`) for feature builds.
 - `run_screen_batch(source, market_store, feature_store, artifact_store, config)` - Loop symbols: ingest/features/screen.
 - `BatchScreenConfig` / `BatchScreenResult` - Batch settings and summary table.
+- `run_study(stores, config)` - Full study pipeline; returns `BatchScreenResult`.
+- `RunStudyConfig` - Symbols, date range, horizon, VIX flag, skip flags.
+- `RunStudyStores` - Bundled source + market/feature/artifact stores.
 
 ## Dependencies
 - Depends on: domain value objects/protocols, persistence stores, features pipeline, modeling baselines, evaluation walk-forward, ingestion adapters (via injected source).
@@ -54,6 +59,12 @@ Batch screen:
 2. CLI calls `run_screen_batch(...)`.
 3. Per-symbol: ingest if missing, build features if missing, then screen.
 4. Returns `BatchScreenResult` with a summary DataFrame.
+
+Full study (`vip run`):
+1. CLI builds `RunStudyStores` (yfinance source + Parquet/artifact stores).
+2. CLI builds `RunStudyConfig` from flags (`--symbol` / `--symbols`, `--with-vix`, skip flags).
+3. CLI calls `run_study(stores, config)`.
+4. Returns `BatchScreenResult` (summary table + per-symbol experiment IDs).
 
 ## Notes
 - Keep use-cases framework-agnostic and easy to unit-test with fakes.

@@ -4,13 +4,13 @@ This folder collects project-level docs for the Volatility Intelligence Platform
 
 ## Start here
 
-- Architecture and roadmap: [`../plan.md`](../plan.md)
-- Research methodology: [`research_methodology.md`](research_methodology.md)
+- Package overview / tutorial: [`../README.md`](../README.md)
 - Architecture guide: [`architecture.md`](architecture.md)
+- Research methodology: [`research_methodology.md`](research_methodology.md)
 - How to add a feature: [`how_to_add_feature.md`](how_to_add_feature.md)
 - Contributing and local setup: [`contributing.md`](contributing.md)
-- Package overview: [`../README.md`](../README.md)
-- Milestone walkthroughs: [`../milestone walkthroughs/`](../milestone%20walkthroughs/)
+- Design roadmap (historical): [`../plan.md`](../plan.md)
+- Milestone walkthroughs (dev notes): [`milestones/`](milestones/)
 
 ## Package docs (`src/vip`)
 
@@ -18,14 +18,15 @@ This folder collects project-level docs for the Volatility Intelligence Platform
 - [`config`](../src/vip/config/README.md) — YAML loading and validated settings
 - [`persistence`](../src/vip/persistence/README.md) — Parquet market data, feature matrices, and artifacts
 - [`orchestration`](../src/vip/orchestration/README.md) — logging and (later) wiring
-- [`cli`](../src/vip/cli/README.md) — terminal commands (`info`, `ingest`, `features`, `evaluate`, `screen`)
+- [`cli`](../src/vip/cli/README.md) — terminal commands (`info`, `ingest`, `features`, `evaluate`, `screen`, `screen-batch`, `run`)
 - [`ingestion`](../src/vip/ingestion/README.md) — Yahoo Finance adapter and OHLCV validation
 - [`features`](../src/vip/features/README.md) — targets, feature families, registry, and pipeline
 - [`modeling`](../src/vip/modeling/README.md) — baselines and regularized linear models
 - [`evaluation`](../src/vip/evaluation/README.md) — metrics, walk-forward, importance, stability
 - [`visualization`](../src/vip/visualization/README.md) — research plots (importance bars)
 - [`reporting`](../src/vip/reporting/README.md) — HTML experiment memos
-- [`application`](../src/vip/application/README.md) — use-cases for ingest, features, baselines, screening
+- [`application`](../src/vip/application/README.md) — use-cases for ingest, features, baselines, screening, and `run_study`
+- [`api`](../src/vip/api/README.md) — optional FastAPI artifact server
 
 ## Conventions
 

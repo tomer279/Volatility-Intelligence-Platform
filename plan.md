@@ -1,39 +1,3 @@
-# Volatility intelligence platform
-
-## User
-
-I want to build a professional portfolio project called "Volatility Intelligence Platform".
-
-The objective is to investigate which factors are most predictive of the future realized volatility of a single stock or ETF, and to build an end-to-end research platform suitable for demonstrating quantitative research, data science, and software engineering skills.
-
-This project should be designed as if it were an internal research tool used by a quantitative hedge fund.
-
-Requirements:
-
-- Use Python.
-- Organize the project as a proper Python package.
-- Follow clean architecture and SOLID principles where appropriate.
-- Separate data ingestion, feature engineering, modeling, evaluation, visualization, and reporting into independent modules.
-- Prioritize readability, testability, and extensibility.
-- Assume the project will eventually grow to 10,000+ lines of code.
-
-Your first task is NOT to write code.
-
-Instead:
-
-1. Design the overall architecture.
-2. Suggest the directory structure.
-3. Identify every module and its responsibility.
-4. Explain how data should flow through the system.
-5. Identify external libraries that should be used.
-6. Suggest which parts should be configurable.
-7. Recommend design patterns where appropriate.
-8. Produce a development roadmap divided into milestones.
-
-Do not generate implementation code until the architecture has been finalized.
-
----
-
 # Volatility Intelligence Platform — Architecture Design
 
 ## 1. Overall Architecture

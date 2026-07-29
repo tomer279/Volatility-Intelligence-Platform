@@ -2,29 +2,39 @@
 
 ## Setup
 
-1. Create and activate a virtual environment.
-2. From the repo root:
+1. Create and activate a virtual environment from the repo root.
 
-```powershell
-.\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+```bash
+python -m venv .venv
 ```
 
-If PowerShell blocks `Activate.ps1`, either use the full path above or run:
-
 ```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+# Windows (PowerShell)
 .\.venv\Scripts\Activate.ps1
+# If execution policy blocks Activate.ps1:
+# Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 ```
+
+```bash
+# macOS / Linux
+source .venv/bin/activate
+```
+
+2. Install with dev extras:
+
+```bash
+pip install -e ".[dev]"
+```
+
+On Windows, if `python` is a Store stub, use `py -3.11 -m venv .venv` and `py -m pip install -e ".[dev]"`.
 
 ## Checks
 
-```powershell
+```bash
 vip --help
 vip info
-py -m pytest -q
+pytest -q
 ```
-
-Prefer `py` / the venv interpreter over the Windows `python` stub.
 
 ## Code style
 
@@ -35,6 +45,4 @@ Prefer `py` / the venv interpreter over the Windows `python` stub.
 
 ## Project layout
 
-See `plan.md` for architecture and milestones. Folder-level READMEs under `src/vip/` describe each package.
-
----
+See [`architecture.md`](architecture.md) for layering and data flow, and the root [`README.md`](../README.md) for how to run the CLI. Folder-level READMEs under `src/vip/` describe each package. Milestone history lives in [`plan.md`](../plan.md) and [`milestones/`](milestones/) (optional reading).

@@ -13,6 +13,7 @@ It should remain a thin interface layer that delegates work to application/use-c
 - `commands/screen.py` - Registers the `vip screen` command.
 - `commands/__init__.py` - Re-exports command registration helpers.
 - `commands/screen_batch.py` - Registers the `vip screen-batch` command.
+- `commands/run.py` - Registers the `vip run` command.
 
 ## Key APIs
 - `app` - Typer application referenced by the `pyproject.toml` script entrypoint.
@@ -25,6 +26,8 @@ It should remain a thin interface layer that delegates work to application/use-c
 - `ingest_command(app)` / `features_command(app)` / `evaluate_command(app)` / `screen_command(app)` - Command registrars.
 - `screen-batch` command - Runs multi-symbol screening with `--skip-ingest` / `--skip-features` flags.
 - `screen_batch_command(app)` - Command registrar.
+- `run` command - One-shot ingest → features → screen (`--symbol` or `--symbols`, `--with-vix`, skip flags).
+- `run_command(app)` - Command registrar.
 
 ## Dependencies
 - Depends on: `typer`, config loader, orchestration logging, application use-cases, persistence stores.
@@ -45,10 +48,9 @@ From an installed editable environment:
 - `vip screen --symbol SPY --n-splits 5 --embargo 5 --n-repeats 5 --top-k 3`
 - `vip screen-batch --symbols SPY,QQQ,IWM`
 - `vip screen-batch --symbols SPY,QQQ --skip-ingest --skip-features`
-
-Future:
-
-- `vip report ...`
+- `vip run --symbol SPY --with-vix`
+- `vip run --symbols SPY,QQQ --with-vix`
+- `vip run --symbol SPY --skip-ingest --skip-features`
 
 ## Notes
 - Keep commands composable and explicit.
@@ -58,3 +60,4 @@ Future:
 - `evaluate` reads `data/processed/` and writes artifacts under `data/artifacts/`.
 - `screen` reads `data/processed/`, prints horse-race + ranked factors, and writes artifacts (including `report.html`) under `data/artifacts/`.
 - Delegate business logic to application modules to preserve testability.
+- `run` orchestrates ingest (including VIX when `--with-vix`), features, and screening; prints report paths under `data/artifacts/`.

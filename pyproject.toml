@@ -9,7 +9,7 @@ description = "Research platform for forecasting realized volatility and screeni
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
-authors = [{ name = "Tomer" }]
+authors = [{ name = "Tomer C." }]
 dependencies = [
     "jinja2>=3.1",
     "matplotlib>=3.8",
@@ -23,6 +23,10 @@ dependencies = [
     "typer>=0.12",
     "yfinance>=0.2",
 ]
+
+[project.urls]
+Homepage = "https://github.com/tomer279/Volatility-Intelligence-Platform"
+Repository = "https://github.com/tomer279/Volatility-Intelligence-Platform"
 
 [project.optional-dependencies]
 dev = [

@@ -7,7 +7,7 @@ Implement volatility forecasting models behind a shared fit/predict interface.
 - `baselines.py` - Historical mean, EWMA, and HAR-RV OLS baselines.
 - `regularization.py` - Ridge, Lasso, and ElasticNet with train-only scaling.
 - `registry.py` - Name → factory registry for baselines, linear, and tree models.
-- `tree_models.py` - Random forest (unscaled); LightGBM optional in later M5 steps.
+- `tree_models.py` - Random forest (unscaled); LightGBM optional (`.[nonlinear]`)
 
 ## Key APIs
 - `HistoricalMeanModel` - Constant forecast equal to the training-target mean.

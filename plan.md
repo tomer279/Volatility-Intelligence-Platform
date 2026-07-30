@@ -383,11 +383,38 @@ Completed:
 - Optional: thin FastAPI `GET /experiments/{id}` for demo  
 **Exit:** one-command reproduction of the flagship SPY/QQQ study
 
-### Later (explicitly out of MVP)
-- Intraday/high-frequency RV  
-- Options-implied surfaces  
-- Portfolio of names / cross-sectional models  
-- Live scheduling / production monitoring  
+### Milestone 7 — Statistical inference on OOS gaps (planned)
+
+**Motivation.** Mean OOS QLIKE rankings (e.g. Lasso vs HAR) are descriptive.
+Overlapping multi-day RV labels inflate effective dependence, so a gap such as
+~0.05 QLIKE is an observation until we report uncertainty. Embargo prevents
+train/test leakage; it does not establish that a model gap is statistically real.
+
+**Scope:**
+- Persist per-observation (or per-row) OOS losses alongside fold aggregates
+- Diebold–Mariano test on loss differentials \(d_t = L^{\text{A}}_t - L^{\text{B}}_t\)
+  (primary: QLIKE), with HAC / Newey–West SE and lag ≥ horizon − 1 (default ≥ 4
+  for the 5-day target)
+- Report for each horse-race pair vs a baseline (default: `har_rv_ols`):
+  mean ΔQLIKE, HAC SE, DM statistic, p-value, and optional 95% CI
+- Optional robustness: block bootstrap of ΔQLIKE (block length ≥ horizon)
+- Optional sensitivity: non-overlapping evaluation subsample (every `horizon`
+  days) as a footnote check
+- Wire results into `metrics.json` / comparison table and the HTML research memo
+- Tighten report wording: “lower mean OOS QLIKE” vs “significantly better”
+  only when the test rejects at a configured α (default 0.05)
+- Unit tests on synthetic loss differentials (known mean / known null)
+- Document overlap, effective sample size, and DM/HAC choices in
+  `docs/research_methodology.md`
+
+**Exit:** Flagship SPY (and batch) reports show model gaps with SE/CI or DM
+p-values; methodology states that rankings without inference are not findings.
+
+### Later (explicitly out of current scope)
+- Intraday/high-frequency RV
+- Options-implied surfaces
+- Portfolio of names / cross-sectional models
+- Live scheduling / production monitoring 
 
 ---
 
@@ -430,7 +457,8 @@ Completed (M6):
 - Docs: methodology, architecture, how to add a feature
 - Optional FastAPI endpoint for experiment artifact retrieval
 
-Next: post-MVP (intraday RV, options surfaces, cross-sectional models, scheduling)
+Next: Milestone 7 — statistical inference on OOS gaps (Diebold–Mariano / HAC SE);
+then further post-MVP (intraday RV, options surfaces, cross-sectional models, scheduling)
 
 ## Suggested Flagship Demo Narrative
 

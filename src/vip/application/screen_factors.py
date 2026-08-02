@@ -4,15 +4,19 @@ Exports
 -------
 ScreenConfig
     Walk-forward and importance settings for a screen run.
+ScreenInferenceOptions
+    Bootstrap / HLN settings for horse-race inference vs HAR.
+ScreenArtifactContext
+    Persist-time screen + inference settings for artifacts.
 FactorScreenResult
     Summary of a completed factor-screening experiment.
 screen_factors
-    Load features, race models, rank factors, and persist artifacts.
+    Load features, race models, rank factors, run inference, and persist artifacts.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 
@@ -20,7 +24,12 @@ import pandas as pd
 
 from vip.domain.errors import PersistenceError
 from vip.domain.value_objects import ExperimentId, Symbol
-from vip.evaluation.comparison import summarize_walk_forward
+from vip.evaluation.comparison import (
+    InferenceSummaryOptions,
+    summarize_with_inference,
+    summarize_nonoverlap_sensitivity
+)
+from vip.evaluation.inference import BootstrapInferenceOptions, nw_lags_for_horizon
 from vip.evaluation.importance import (
     ImportanceOptions,
     WalkForwardSpec,
@@ -31,7 +40,9 @@ from vip.modeling.tree_models import RandomForestVolModel
 from vip.evaluation.stability import StabilityOptions, summarize_importance
 from vip.evaluation.regimes import score_predictions_by_regime
 from vip.evaluation.walk_forward import (
-    collect_walk_forward_predictions, run_walk_forward
+    attach_qlike_losses,
+    collect_walk_forward_predictions,
+    run_walk_forward,
 )
 from vip.modeling.registry import create_default_model_registry
 from vip.modeling.regularization import RidgeModel
@@ -41,13 +52,16 @@ from vip.visualization.importance_plots import (
     plot_importance_bars, ImportancePlotOptions
 )
 from vip.reporting.experiment_summary import (
+    InferenceReportMeta,
     ReportMeta,
     ScreenReportPayload,
     build_factor_screen_context,
 )
 from vip.reporting.html_report import render_factor_screen_report, write_html_report
 
-
+DEFAULT_BASELINE_MODEL = "har_rv_ols"
+DEFAULT_HORIZON_DAYS = 5
+DEFAULT_INCLUDE_HLN_DM = True
 DEFAULT_TARGET_COLUMN = "target_rv_cc_5d"
 DEFAULT_N_SPLITS = 5
 DEFAULT_EMBARGO_SIZE = 5
@@ -56,6 +70,7 @@ DEFAULT_TOP_K = 3
 DEFAULT_RANDOM_SEED = 0
 SCREENING_MODEL_NAME = "ridge"
 HORSE_RACE_MODELS = ("har_rv_ols", "ridge", "lasso")
+DEFAULT_INCLUDE_NONOVERLAP_SENSITIVITY = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -163,6 +178,7 @@ class ScreenRunIdentity:
             "screening_model": self.screening_model,
         }
 
+
 @dataclass(frozen=True, slots=True)
 class ShapScreenOutputs:
     """Optional TreeSHAP outputs for the screening model path.
@@ -213,7 +229,7 @@ class ScreenResultTables:
     Parameters
     ----------
     summary : pandas.DataFrame
-        Aggregate model horse-race metrics.
+        Horse-race metrics plus bootstrap / optional HLN–DM vs baseline.
     fold_metrics : pandas.DataFrame
         Per-fold model metrics.
     importance : pandas.DataFrame
@@ -222,6 +238,8 @@ class ScreenResultTables:
         Aggregated factor ranking with stability stats.
     regime_metrics : pandas.DataFrame
         Regime-sliced OOS metrics.
+    oos_losses : pandas.DataFrame
+        Per-row OOS QLIKE loss panel indexed by session date.
 
     Methods
     -------
@@ -236,6 +254,7 @@ class ScreenResultTables:
     importance: pd.DataFrame
     ranking: pd.DataFrame
     regime_metrics: pd.DataFrame
+    oos_losses: pd.DataFrame
 
     def top_feature(self) -> str:
         """Return the highest-ranked feature name.
@@ -259,6 +278,60 @@ class ScreenResultTables:
 
 
 @dataclass(frozen=True, slots=True)
+class ScreenInferenceOptions:
+    """Inference settings for a factor-screen horse-race.
+
+    Parameters
+    ----------
+    baseline_model : str
+        Reference model for ΔQLIKE.
+    horizon_days : int
+        Target horizon (NW lags = horizon − 1).
+    include_hln_dm : bool
+        Attach secondary HLN–DM columns when True.
+    bootstrap : BootstrapInferenceOptions
+        Primary block-bootstrap settings.
+    include_nonoverlap_sensitivity : bool
+        When True, persist ``inference_sensitivity.json`` footnote bootstrap.
+
+    Methods
+    -------
+    validate()
+        Raise if settings are invalid.
+    to_summary_options()
+        Convert to ``InferenceSummaryOptions``.
+    """
+
+    baseline_model: str = DEFAULT_BASELINE_MODEL
+    horizon_days: int = DEFAULT_HORIZON_DAYS
+    include_hln_dm: bool = DEFAULT_INCLUDE_HLN_DM
+    bootstrap: BootstrapInferenceOptions = field(
+        default_factory=BootstrapInferenceOptions
+    )
+    include_nonoverlap_sensitivity: bool = DEFAULT_INCLUDE_NONOVERLAP_SENSITIVITY
+
+
+    def validate(self) -> None:
+        """Raise if inference settings are invalid."""
+        self.to_summary_options().validate()
+
+    def to_summary_options(self) -> InferenceSummaryOptions:
+        """Convert to comparison-layer options.
+
+        Returns
+        -------
+        InferenceSummaryOptions
+            Options consumed by ``summarize_with_inference``.
+        """
+        return InferenceSummaryOptions(
+            baseline_model=self.baseline_model,
+            horizon_days=self.horizon_days,
+            include_hln_dm=self.include_hln_dm,
+            bootstrap=self.bootstrap,
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class FactorScreenResult:
     """Summary of a completed factor-screening experiment.
 
@@ -267,7 +340,10 @@ class FactorScreenResult:
     identity : ScreenRunIdentity
         Symbol, experiment id, and screening model.
     tables : ScreenResultTables
-        Horse-race, importance, ranking, and regime tables.
+        Inference-enriched horse-race, OOS losses, importance, ranking,
+        and regime tables.
+    shap : ShapScreenOutputs or None
+        Optional TreeSHAP outputs when ``shap`` is installed.
 
     Methods
     -------
@@ -302,64 +378,172 @@ class FactorScreenResult:
         return self.tables.best_model_qlike()
 
 
+@dataclass(frozen=True, slots=True)
+class ScreenArtifactContext:
+    """Persist-time settings for a factor-screen run.
+
+    Parameters
+    ----------
+    config : ScreenConfig
+        Walk-forward / importance settings.
+    inference : ScreenInferenceOptions
+        Bootstrap / HLN settings used for artifacts and meta.
+
+    Methods
+    -------
+    describe()
+        Return a short human-readable summary.
+    screen_meta_payload(identity, top_feature)
+        Build the ``screen_meta.json`` mapping.
+    """
+
+    config: ScreenConfig
+    inference: ScreenInferenceOptions
+
+    def describe(self) -> str:
+        """Return a short human-readable summary.
+
+        Returns
+        -------
+        str
+            Compact persist-context summary.
+        """
+        return f"{self.config.describe()} | {self.inference.to_summary_options().describe()}"
+
+    def screen_meta_payload(
+        self,
+        identity: ScreenRunIdentity,
+        top_feature: str,
+    ) -> dict[str, object]:
+        """Build JSON fields for ``screen_meta``.
+
+        Parameters
+        ----------
+        identity : ScreenRunIdentity
+            Symbol / screening-model identity.
+        top_feature : str
+            Top-ranked factor name.
+
+        Returns
+        -------
+        dict of str to object
+            Meta payload including inference defaults.
+        """
+        inference = self.inference
+        return {
+            **identity.meta_payload(),
+            "top_feature": top_feature,
+            "baseline_model": inference.baseline_model,
+            "horizon_days": inference.horizon_days,
+            "nw_lags": nw_lags_for_horizon(inference.horizon_days),
+            "bootstrap_block_length": inference.bootstrap.block_length,
+            "bootstrap_n_resamples": inference.bootstrap.n_resamples,
+            "alpha": inference.bootstrap.alpha,
+            "include_hln_dm": inference.include_hln_dm,
+            "include_nonoverlap_sensitivity": inference.include_nonoverlap_sensitivity,
+        }
+
+
 def screen_factors(
     feature_store: ParquetFeatureMatrixStore,
     artifact_store: FilesystemArtifactStore,
     symbol: Symbol,
     config: ScreenConfig | None = None,
+    inference: ScreenInferenceOptions | None = None,
 ) -> FactorScreenResult:
-    """Load features, race models, rank factors, and persist artifacts.
+    """Load features, race models, rank factors, run inference, and persist artifacts.
 
     Parameters
     ----------
     feature_store : ParquetFeatureMatrixStore
         Store containing the feature matrix.
     artifact_store : FilesystemArtifactStore
-        Destination for JSON artifacts.
+        Destination for JSON / plot / HTML artifacts.
     symbol : Symbol
         Instrument to screen.
     config : ScreenConfig or None, default None
         Walk-forward / importance settings.
+    inference : ScreenInferenceOptions or None, default None
+        Bootstrap / HLN settings vs the HAR baseline.
 
     Returns
     -------
     FactorScreenResult
-        Horse-race tables, factor ranking, and experiment id.
+        Horse-race tables (with inference columns), factor ranking,
+        OOS losses, and experiment id.
 
     Raises
     ------
     PersistenceError
         If the feature matrix is missing or malformed.
     """
+    context = _resolve_artifact_context(config, inference)
+    features, target = _load_features_and_target(feature_store, symbol)
+    tables, shap_outputs = _build_screen_tables(
+        features, target, context.config, context.inference
+    )
+    result = _assemble_screen_result(symbol, tables, shap_outputs)
+    _persist_screen_artifacts(artifact_store, result, context)
+    return result
+
+
+def _resolve_artifact_context(
+    config: ScreenConfig | None,
+    inference: ScreenInferenceOptions | None,
+) -> ScreenArtifactContext:
+    """Validate and bundle screen + inference settings."""
     resolved = config if config is not None else ScreenConfig()
     resolved.validate()
+    inference_opts = (
+        inference if inference is not None else ScreenInferenceOptions()
+    )
+    inference_opts.validate()
+    return ScreenArtifactContext(config=resolved, inference=inference_opts)
 
-    features, target = _load_features_and_target(feature_store, symbol)
-    fold_metrics, summary = _run_horse_race(features, target, resolved)
-    importance, ranking = _run_ridge_importance(features, target, resolved)
-    regime_metrics = _run_regime_metrics(features, target, resolved)
-    shap_outputs = _run_shap_importance(features, target, resolved)
 
+def _build_screen_tables(
+    features: pd.DataFrame,
+    target: pd.Series,
+    config: ScreenConfig,
+    inference: ScreenInferenceOptions,
+) -> tuple[ScreenResultTables, ShapScreenOutputs | None]:
+    """Run horse-race, inference, importance, regimes, and optional SHAP."""
+    fold_metrics, oos_losses, summary = _run_horse_race_with_inference(
+        features, target, config, inference
+    )
+    importance, ranking = _run_ridge_importance(features, target, config)
+    regime_metrics = _run_regime_metrics_from_losses(oos_losses)
+    shap_outputs = _run_shap_importance(features, target, config)
+    tables = ScreenResultTables(
+        summary=summary,
+        fold_metrics=fold_metrics,
+        importance=importance,
+        ranking=ranking,
+        regime_metrics=regime_metrics,
+        oos_losses=oos_losses,
+    )
+    return tables, shap_outputs
+
+
+def _assemble_screen_result(
+    symbol: Symbol,
+    tables: ScreenResultTables,
+    shap_outputs: ShapScreenOutputs | None,
+) -> FactorScreenResult:
+    """Build the public result object with a dated experiment id."""
     experiment_id = ExperimentId(
         f"factor-screen-{symbol.as_path_key().lower()}-{date.today().isoformat()}"
     )
-    result = FactorScreenResult(
-        identity=ScreenRunIdentity(
-            symbol=symbol,
-            experiment_id=experiment_id,
-            screening_model=SCREENING_MODEL_NAME,
-        ),
-        tables=ScreenResultTables(
-            summary=summary,
-            fold_metrics=fold_metrics,
-            importance=importance,
-            ranking=ranking,
-            regime_metrics=regime_metrics,
-        ),
+    identity = ScreenRunIdentity(
+        symbol=symbol,
+        experiment_id=experiment_id,
+        screening_model=SCREENING_MODEL_NAME,
+    )
+    return FactorScreenResult(
+        identity=identity,
+        tables=tables,
         shap=shap_outputs,
     )
-    _persist_screen_artifacts(artifact_store, result, resolved)
-    return result
 
 
 def _load_features_and_target(
@@ -381,29 +565,10 @@ def _load_features_and_target(
     return features, target
 
 
-def _run_horse_race(
-    features: pd.DataFrame,
-    target: pd.Series,
-    config: ScreenConfig,
-) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Evaluate HAR OLS and regularized models walk-forward."""
-    registry = create_default_model_registry()
-    models = registry.create_many(list(HORSE_RACE_MODELS))
-    fold_metrics = run_walk_forward(
-        features=features,
-        target=target,
-        models=models,
-        n_splits=config.n_splits,
-        embargo_size=config.embargo_size,
-    )
-    summary = summarize_walk_forward(fold_metrics, primary_metric="qlike")
-    return fold_metrics, summary
-
-
 def _run_ridge_importance(
-    features: pd.DataFrame,
-    target: pd.Series,
-    config: ScreenConfig,
+        features: pd.DataFrame,
+        target: pd.Series,
+        config: ScreenConfig,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Compute Ridge permutation importance and stability ranking."""
     importance = permutation_importance_folds(
@@ -427,9 +592,9 @@ def _run_ridge_importance(
 
 
 def _run_shap_importance(
-    features: pd.DataFrame,
-    target: pd.Series,
-    config: ScreenConfig,
+        features: pd.DataFrame,
+        target: pd.Series,
+        config: ScreenConfig,
 ) -> ShapScreenOutputs | None:
     """Compute RF TreeSHAP importance when ``shap`` is installed.
 
@@ -470,49 +635,36 @@ def _run_shap_importance(
 def _persist_screen_artifacts(
     artifact_store: FilesystemArtifactStore,
     result: FactorScreenResult,
-    config: ScreenConfig,
+    context: ScreenArtifactContext,
 ) -> None:
     """Write screen artifacts (JSON, plots, HTML report)."""
-    tables = result.tables
-    identity = result.identity
-    experiment_id = identity.experiment_id
-
-    _write_screen_json_artifacts(
-        artifact_store=artifact_store,
-        experiment_id=experiment_id,
-        identity=identity,
-        tables=tables,
-        top_feature=result.top_feature(),
-    )
-
+    _write_screen_json_artifacts(artifact_store, result, context)
     _write_screen_plots(
         artifact_store=artifact_store,
-        experiment_id=experiment_id,
-        tables=tables,
+        experiment_id=result.identity.experiment_id,
+        tables=result.tables,
         shap_outputs=result.shap,
     )
-
     _write_screen_html_report(
         artifact_store=artifact_store,
-        experiment_id=experiment_id,
-        config=config,
-        identity=identity,
-        tables=tables,
+        result=result,
+        context=context
     )
 
 
 def _write_screen_json_artifacts(
-    artifact_store: FilesystemArtifactStore,
-    experiment_id: ExperimentId,
-    identity: ScreenRunIdentity,
-    tables: ScreenResultTables,
-    top_feature: str,
+        artifact_store: FilesystemArtifactStore,
+        result: FactorScreenResult,
+        context: ScreenArtifactContext,
 ) -> None:
     """Write JSON artifacts for a factor-screen run."""
+    tables = result.tables
+    identity = result.identity
+    experiment_id = identity.experiment_id
+    inference = context.inference
+
     artifact_store.write_json(
-        experiment_id,
-        "metrics",
-        tables.summary.to_dict(orient="records"),
+        experiment_id, "metrics", _records_with_nulls(tables.summary)
     )
     artifact_store.write_json(
         experiment_id,
@@ -535,20 +687,35 @@ def _write_screen_json_artifacts(
         tables.regime_metrics.to_dict(orient="records"),
     )
     artifact_store.write_json(
+        experiment_id, "oos_losses", _oos_losses_records(tables.oos_losses)
+    )
+    artifact_store.write_json(
+        experiment_id,
+        "inference",
+        _inference_records(tables.summary, inference.baseline_model),
+    )
+    if inference.include_nonoverlap_sensitivity:
+        sensitivity = summarize_nonoverlap_sensitivity(
+            tables.oos_losses,
+            inference.to_summary_options(),
+        )
+        artifact_store.write_json(
+            experiment_id,
+            "inference_sensitivity",
+            _records_with_nulls(sensitivity),
+        )
+    artifact_store.write_json(
         experiment_id,
         "screen_meta",
-        {
-            **identity.meta_payload(),
-            "top_feature": top_feature,
-        },
+        context.screen_meta_payload(identity, result.top_feature()),
     )
 
 
 def _write_screen_plots(
-    artifact_store: FilesystemArtifactStore,
-    experiment_id: ExperimentId,
-    tables: ScreenResultTables,
-    shap_outputs: ShapScreenOutputs | None,
+        artifact_store: FilesystemArtifactStore,
+        experiment_id: ExperimentId,
+        tables: ScreenResultTables,
+        shap_outputs: ShapScreenOutputs | None,
 ) -> Path:
     """Write plot PNGs and return permutation importance plot path."""
     plot_path = artifact_store.experiment_dir(experiment_id) / "importance_plot.png"
@@ -578,16 +745,18 @@ def _write_screen_plots(
 
 
 def _write_screen_html_report(
-    artifact_store: FilesystemArtifactStore,
-    experiment_id: ExperimentId,
-    config: ScreenConfig,
-    identity: ScreenRunIdentity,
-    tables: ScreenResultTables,
+        artifact_store: FilesystemArtifactStore,
+        result: FactorScreenResult,
+        context: ScreenArtifactContext,
 ) -> None:
     """Build and write the factor-screen HTML report."""
-    plot_path = (
-        artifact_store.experiment_dir(experiment_id) / "importance_plot.png"
-    )
+    identity = result.identity
+    tables = result.tables
+    config = context.config
+    inference = context.inference
+    experiment_id = identity.experiment_id
+    plot_path = artifact_store.experiment_dir(experiment_id) / "importance_plot.png"
+
     payload = ScreenReportPayload(
         symbol=identity.symbol.value,
         experiment_id=experiment_id.value,
@@ -599,23 +768,43 @@ def _write_screen_html_report(
     meta = ReportMeta(
         n_splits=config.n_splits,
         embargo_size=config.embargo_size,
+        inference=InferenceReportMeta(
+            baseline_model=inference.baseline_model,
+            nw_lags=nw_lags_for_horizon(inference.horizon_days),
+            bootstrap_block_length=inference.bootstrap.block_length,
+            alpha=inference.bootstrap.alpha,
+            bootstrap_n_resamples=inference.bootstrap.n_resamples,
+        ),
     )
-    context = build_factor_screen_context(payload, plot_path, meta)
-    html = render_factor_screen_report(context)
+    report_context = build_factor_screen_context(payload, plot_path, meta)
+    html = render_factor_screen_report(report_context)
     write_html_report(
         artifact_store.experiment_dir(experiment_id) / "report.html",
         html,
     )
 
 
-def _run_regime_metrics(
-    features: pd.DataFrame,
-    target: pd.Series,
-    config: ScreenConfig,
-) -> pd.DataFrame:
-    """Collect OOS predictions and score locked regimes."""
+def _run_horse_race_with_inference(
+        features: pd.DataFrame,
+        target: pd.Series,
+        config: ScreenConfig,
+        inference: ScreenInferenceOptions,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Walk-forward metrics, OOS losses, and inference-enriched summary.
+
+    Fold aggregates still come from ``run_walk_forward``. Per-row losses
+    come from one prediction collection + ``attach_qlike_losses``, which
+    regimes reuse.
+    """
     registry = create_default_model_registry()
     models = registry.create_many(list(HORSE_RACE_MODELS))
+    fold_metrics = run_walk_forward(
+        features=features,
+        target=target,
+        models=models,
+        n_splits=config.n_splits,
+        embargo_size=config.embargo_size,
+    )
     predictions = collect_walk_forward_predictions(
         features=features,
         target=target,
@@ -623,4 +812,83 @@ def _run_regime_metrics(
         n_splits=config.n_splits,
         embargo_size=config.embargo_size,
     )
-    return score_predictions_by_regime(predictions)
+    oos_losses = attach_qlike_losses(predictions)
+    summary = summarize_with_inference(
+        fold_metrics,
+        oos_losses,
+        options=inference.to_summary_options(),
+    )
+    return fold_metrics, oos_losses, summary
+
+
+def _oos_losses_records(oos_losses: pd.DataFrame) -> list[dict[str, object]]:
+    """JSON-friendly long-form OOS loss panel with a date column."""
+    frame = oos_losses.reset_index(names="date").copy()
+    frame["date"] = frame["date"].map(_stringify_timestamp)
+    return _records_with_nulls(frame)
+
+
+def _run_regime_metrics_from_losses(oos_losses: pd.DataFrame) -> pd.DataFrame:
+    """Score locked regimes from the shared OOS prediction/loss panel.
+
+    Parameters
+    ----------
+    oos_losses : pandas.DataFrame
+        Output of ``attach_qlike_losses`` (must include ``model``,
+        ``y_true``, ``y_pred``). Extra columns such as ``qlike_loss``
+        are ignored.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Regime × model QLIKE / MSE / MAE table.
+    """
+    return score_predictions_by_regime(oos_losses)
+
+
+def _inference_records(summary: pd.DataFrame, baseline_model: str) -> list[dict]:
+    """Challenger-only inference rows for inference.json."""
+    challengers = summary.loc[summary["model"].astype(str) != baseline_model]
+    columns = [
+        "model",
+        "mean_delta_qlike",
+        "bootstrap_ci_low",
+        "bootstrap_ci_high",
+        "bootstrap_pvalue",
+        "significant_vs_baseline",
+        "dm_stat",
+        "hln_stat",
+        "hln_pvalue",
+        "nw_lags",
+    ]
+    present = [col for col in columns if col in challengers.columns]
+    return _records_with_nulls(challengers[present])
+
+
+def _stringify_timestamp(value: object) -> str:
+    """Convert a timestamp-like value to an ISO date string."""
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return str(value)
+
+
+def _records_with_nulls(frame: pd.DataFrame) -> list[dict[str, object]]:
+    """Convert a frame to records, mapping NaN to None for JSON."""
+    records: list[dict[str, object]] = []
+    for row in frame.to_dict(orient="records"):
+        cleaned = {
+            key: (None if _is_null(value) else value)
+            for key, value in row.items()
+        }
+        records.append(cleaned)
+    return records
+
+
+def _is_null(value: object) -> bool:
+    """Return True for pandas/NumPy missing values."""
+    if value is None:
+        return True
+    try:
+        return bool(pd.isna(value))
+    except (TypeError, ValueError):
+        return False

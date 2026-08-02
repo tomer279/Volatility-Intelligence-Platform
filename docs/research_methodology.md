@@ -1,6 +1,6 @@
 # Research Methodology
 
-This document describes the quantitative methodology used across milestones 1–5
+This document describes the quantitative methodology used across milestones 1–7
 of the Volatility Intelligence Platform.  It is written for a technically
 literate reader (quant analyst, PM, or researcher) and references the locked
 defaults from `plan.md`.
@@ -246,7 +246,80 @@ data range does not cover the COVID period), the regime row is reported with
 
 ---
 
-## 10  Caveats
+## 10  Statistical inference on OOS gaps (Milestone 7)
+
+Mean walk-forward QLIKE rankings are **descriptive**. Overlapping multi-day RV
+labels (`target_rv_cc_5d`) induce serial dependence in per-row loss
+differentials, so a gap such as “Lasso beats HAR by 0.05 QLIKE” is not a
+finding until uncertainty is attached.
+
+### 10.1  What embargo does — and does not do
+
+The walk-forward **embargo** (default 5 sessions) blocks train/test leakage
+around the forecast horizon. It is **not** a statistical test that a model gap
+is real. Inference is a separate step on out-of-sample losses only.
+
+### 10.2  Per-row loss differentials
+
+For each horse-race challenger vs baseline `har_rv_ols`, form
+
+```text
+d_t = L_t(challenger) − L_t(baseline)
+```
+
+on aligned OOS session dates, where `L_t` is per-row QLIKE. Mean ΔQLIKE =
+`mean(d_t)` (negative favors the challenger). Inference is **never** run on the
+five fold-mean QLIKE values alone.
+
+### 10.3  Primary inference — block bootstrap
+
+| Setting | Locked default |
+| --- | --- |
+| Method | Moving block bootstrap of `mean(d_t)` |
+| Block length | 15 trading days (allowed range 10–20) |
+| Resamples | 1999 (999 acceptable in unit tests) |
+| α | 0.05 (two-sided percentile CI) |
+| Seed | 0 |
+
+Report mean ΔQLIKE, bootstrap CI, and two-sided bootstrap p-value for
+H0: E[`d_t`] = 0. Block (not i.i.d. day) resampling is required because
+overlapping 5-day labels correlate nearby `d_t`.
+
+### 10.4  Secondary inference — HLN–DM + Newey–West
+
+When enabled, also report Diebold–Mariano with Newey–West HAC and the
+Harvey–Leybourne–Newbold finite-sample correction:
+
+- NW lags = `horizon_days − 1` → **4** for the default 5-day target
+- Persist `dm_stat`, `hln_stat`, `hln_pvalue`, `nw_lags` as **secondary** columns
+- Do **not** claim “significantly better” from uncorrected DM, or from HLN–DM
+  alone when the bootstrap does not reject
+
+### 10.5  Report wording
+
+- “**Significantly** lower mean OOS QLIKE vs HAR” **only** when the **primary
+  bootstrap** rejects at α **and** mean ΔQLIKE &lt; 0
+- Otherwise: “lower / higher mean OOS QLIKE vs HAR (not significant at α)”
+- Fold-mean horse-race tables without inference columns remain descriptive
+
+### 10.6  Optional sensitivity (footnote)
+
+Subsample OOS dates to non-overlapping horizon spacing (every `horizon_days`-th
+OOS row; every 5th trading day for h=5). Recompute mean ΔQLIKE ± block bootstrap
+on the thinner series and persist as `inference_sensitivity.json`. This is a
+**footnote robustness check**, not a second primary test and not a substitute
+for the overlapping-sample bootstrap.
+
+### 10.7  Effective sample size (qualitative)
+
+Overlapping h-step labels reduce the effective independent sample relative to
+raw OOS row count. The platform does not claim a single scalar “effective N” as
+a formal estimator; instead it (a) uses block bootstrap with length in 10–20,
+(b) locks NW lag to h−1, and (c) optionally reports the non-overlapping
+subsample footnote.
+
+
+## 11  Caveats
 
 1. **No causal claims.**  All importance measures (permutation ΔQLIKE, SHAP) are
   associative.  A high-ranked feature predicts well; it does not *cause*
@@ -270,3 +343,7 @@ data range does not cover the COVID period), the regime row is reported with
 7. **Walk-forward assumptions.**  Expanding windows assume stationarity of the
   feature–target relationship.  Structural breaks (e.g. post-COVID liquidity
    regime) may violate this.
+8. **Inference vs ranking.** Horse-race QLIKE orderings without bootstrap
+   inference are descriptive, not findings.
+9. **Overlap.** Overlapping RV labels require block bootstrap (and HAC lag
+   h−1); i.i.d. day bootstrap understates dependence.

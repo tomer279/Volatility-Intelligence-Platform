@@ -22,7 +22,8 @@ It should remain a thin interface layer that delegates work to application/use-c
 - `ingest` command - Fetches, validates, and persists daily OHLCV data.
 - `features` command - Builds and persists a feature matrix from ingested OHLCV.
 - `evaluate` command - Runs baseline walk-forward evaluation and prints a comparison table.
-- `screen` command - Runs factor screening (horse-race + Ridge importance) and writes an HTML report.
+- `screen` command - Runs factor screening (horse-race + inference vs HAR + Ridge importance)
+  and writes an HTML research memo.
 - `ingest_command(app)` / `features_command(app)` / `evaluate_command(app)` / `screen_command(app)` - Command registrars.
 - `screen-batch` command - Runs multi-symbol screening with `--skip-ingest` / `--skip-features` flags.
 - `screen_batch_command(app)` - Command registrar.
@@ -58,6 +59,8 @@ From an installed editable environment:
 - Date options are strings (`YYYY-MM-DD`) because Typer does not support `datetime.date` annotations.
 - `features` reads OHLCV from `data/raw/` and writes matrices to `data/processed/`.
 - `evaluate` reads `data/processed/` and writes artifacts under `data/artifacts/`.
-- `screen` reads `data/processed/`, prints horse-race + ranked factors, and writes artifacts (including `report.html`) under `data/artifacts/`.
+- `screen` reads `data/processed/`, prints horse-race + inference (mean ΔQLIKE, bootstrap CI/p)
+  + ranked factors, and writes artifacts under `data/artifacts/` including `oos_losses.json`,
+  `inference.json`, optional `inference_sensitivity.json`, and `report.html`.
 - Delegate business logic to application modules to preserve testability.
 - `run` orchestrates ingest (including VIX when `--with-vix`), features, and screening; prints report paths under `data/artifacts/`.

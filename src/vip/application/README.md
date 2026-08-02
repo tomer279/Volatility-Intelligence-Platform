@@ -8,7 +8,7 @@ CLI commands should call these functions rather than embedding business logic.
 - `ingest_market_data.py` - Fetch, validate, and persist daily OHLCV market data.
 - `build_feature_matrix.py` - Load OHLCV, build features/target, and persist the matrix.
 - `run_baseline_experiment.py` - Walk-forward baseline evaluation and artifact persistence.
-- `screen_factors.py` - Factor screen (horse-race, importance, HTML report).
+- `screen_factors.py` - Factor screen (horse-race, OOS inference vs HAR, importance, HTML report).
 - `screen_batch.py` - Multi-symbol batch screening with ingest/features caching.
 - `run_study.py` - Composite ingest → features → screen for one or more symbols.
 - `__init__.py` - Public application exports.
@@ -20,8 +20,9 @@ CLI commands should call these functions rather than embedding business logic.
 - `BuildFeatureMatrixResult` - Summary of a completed feature-matrix build.
 - `run_baseline_experiment(feature_store, artifact_store, symbol, ...)` - Evaluate baselines and write metrics.
 - `BaselineExperimentResult` - Summary table, fold metrics, and winning model.
-- `screen_factors(feature_store, artifact_store, symbol, config=None)` - Factor screen + artifacts.
-- `FactorScreenResult` / `ScreenConfig` - Result object and nested settings.
+- `screen_factors(feature_store, artifact_store, symbol, config=None, inference=None)` - Factor screen + inference + artifacts.
+- `FactorScreenResult` / `ScreenConfig` / `ScreenInferenceOptions` - Result object and nested settings.
+- `ScreenArtifactContext` - Persist-time screen + inference settings for artifacts / `screen_meta`.
 - `FeatureMatrixExtras` - Optional settings (`feature_names`, `include_vix`) for feature builds.
 - `run_screen_batch(source, market_store, feature_store, artifact_store, config)` - Loop symbols: ingest/features/screen.
 - `BatchScreenConfig` / `BatchScreenResult` - Batch settings and summary table.
@@ -30,7 +31,7 @@ CLI commands should call these functions rather than embedding business logic.
 - `RunStudyStores` - Bundled source + market/feature/artifact stores.
 
 ## Dependencies
-- Depends on: domain value objects/protocols, persistence stores, features pipeline, modeling baselines, evaluation walk-forward, ingestion adapters (via injected source).
+- Depends on: domain value objects/protocols, persistence stores, features pipeline, modeling baselines, evaluation walk-forward / inference, ingestion adapters (via injected source), reporting.
 - Must not depend on: Typer/CLI formatting details.
 
 ## Usage
@@ -51,8 +52,11 @@ Baselines:
 
 Factor screen:
 1. CLI builds feature + artifact stores.
-2. CLI calls `screen_factors(...)`.
-3. Writes `metrics.json`, `folds.json`, `importance.json`, `factor_ranking.json`, `screen_meta.json`, `importance_plot.png`, and `report.html`.
+2. CLI calls `screen_factors(...)` (optional `ScreenInferenceOptions`).
+3. Writes `metrics.json` (inference-enriched), `folds.json`, `oos_losses.json`,
+   `inference.json`, optional `inference_sensitivity.json`, `importance.json`,
+   `factor_ranking.json`, `metrics_by_regime.json`, `screen_meta.json`,
+   `importance_plot.png`, and `report.html`.
 
 Batch screen:
 1. CLI builds stores + source + `BatchScreenConfig`.
@@ -69,3 +73,5 @@ Full study (`vip run`):
 ## Notes
 - Keep use-cases framework-agnostic and easy to unit-test with fakes.
 - Prefer dependency injection of source/store over constructing them inside the use-case.
+- Screen inference defaults: block bootstrap primary vs `har_rv_ols`; optional HLN–DM;
+  optional non-overlapping horizon subsample footnote (`inference_sensitivity.json`).

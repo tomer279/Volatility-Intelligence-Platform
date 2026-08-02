@@ -10,6 +10,7 @@ from vip.reporting.experiment_summary import (
     ReportMeta,
     ScreenReportPayload,
     build_factor_screen_context,
+    InferenceReportMeta
 )
 from vip.reporting.html_report import render_factor_screen_report, write_html_report
 
@@ -22,6 +23,12 @@ def _payload() -> ScreenReportPayload:
             "qlike": [0.11, 0.12],
             "mse": [0.01, 0.02],
             "mae": [0.05, 0.06],
+            "mean_delta_qlike": [-0.01, None],
+            "bootstrap_ci_low": [-0.02, None],
+            "bootstrap_ci_high": [-0.005, None],
+            "bootstrap_pvalue": [0.03, None],
+            "significant_vs_baseline": [True, None],
+            "hln_pvalue": [0.04, None],
         }
     )
     ranking = pd.DataFrame(
@@ -56,23 +63,27 @@ def _payload() -> ScreenReportPayload:
 
 def test_render_factor_screen_report_contains_sections() -> None:
     """HTML memo should include core research sections."""
-    context = build_factor_screen_context(
-        payload=_payload(),
-        plot_path=None,
-        meta=ReportMeta(n_splits=3, embargo_size=5),
+    meta = ReportMeta(
+        n_splits=3,
+        embargo_size=5,
+        inference=InferenceReportMeta(
+            baseline_model="har_rv_ols",
+            nw_lags=4,
+            bootstrap_block_length=15,
+            alpha=0.05,
+        ),
     )
-    html = render_factor_screen_report(context)
+    html = render_factor_screen_report(build_factor_screen_context(_payload(), None, meta))
+    assert "nan" not in html.lower()
+    assert "—" in html
     for snippet in (
-        "Factor Screen",
-        "Research question",
-        "Locked methodology",
-        "Model horse-race",
-        "Ranked factors",
-        "What works when",
-        "Caveats",
-        "target_rv_cc_5d",
-        "ridge",
-        "rv_cc_5d",
+        "mean ΔQLIKE",
+        "bootstrap CI",
+        "bootstrap p",
+        "significantly lower mean OOS QLIKE vs HAR (bootstrap)",
+        "block length=15",
+        "Newey–West lags=4",
+        "har_rv_ols",
     ):
         assert snippet in html
 

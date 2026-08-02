@@ -8,6 +8,8 @@ mae
     Mean absolute error.
 qlike
     QLIKE volatility forecast loss.
+qlike_losses
+    Per-row QLIKE losses for volatility forecasts
 """
 
 from __future__ import annotations
@@ -69,9 +71,9 @@ def mae(y_true: pd.Series, y_pred: pd.Series) -> float:
 
 
 def qlike(
-    y_true: pd.Series,
-    y_pred: pd.Series,
-    epsilon: float = DEFAULT_EPSILON,
+        y_true: pd.Series,
+        y_pred: pd.Series,
+        epsilon: float = DEFAULT_EPSILON,
 ) -> float:
     """Compute QLIKE loss for volatility forecasts.
 
@@ -107,9 +109,48 @@ def qlike(
     return float(np.mean(values))
 
 
+def qlike_losses(
+        y_true: pd.Series,
+        y_pred: pd.Series,
+        epsilon: float = DEFAULT_EPSILON,
+) -> pd.Series:
+    """Compute per-row QLIKE losses for volatility forecasts.
+
+    Uses ``log(yhat^2) + y^2 / yhat^2`` with predictions clipped below by
+    ``epsilon``. The mean of the returned series matches ``qlike``.
+
+    Parameters
+    ----------
+    y_true : pandas.Series
+        Realized volatility values.
+    y_pred : pandas.Series
+        Forecasted volatility values.
+    epsilon : float, default 1e-8
+        Lower bound applied to predictions before scoring.
+
+    Returns
+    -------
+    pandas.Series
+        Elementwise QLIKE losses aligned to the overlapping index.
+
+    Raises
+    ------
+    DataValidationError
+        If inputs are empty, cannot be aligned, or ``epsilon`` is not positive.
+    """
+    if epsilon <= 0:
+        raise DataValidationError("epsilon must be positive.")
+
+    left, right = _align_and_validate(y_true, y_pred)
+    clipped = np.maximum(right.to_numpy(dtype=float), epsilon)
+    realized = left.to_numpy(dtype=float)
+    values = np.log(clipped**2) + (realized**2) / (clipped**2)
+    return pd.Series(values, index=left.index, name="qlike_loss")
+
+
 def _align_and_validate(
-    y_true: pd.Series,
-    y_pred: pd.Series,
+        y_true: pd.Series,
+        y_pred: pd.Series,
 ) -> tuple[pd.Series, pd.Series]:
     """Align series on a common index and drop missing pairs.
 

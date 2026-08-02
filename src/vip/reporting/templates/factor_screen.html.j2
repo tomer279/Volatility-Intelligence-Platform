@@ -36,29 +36,67 @@
     <li>Walk-forward: expanding, n_splits={{ n_splits }}, embargo={{ embargo_size }}</li>
     <li>Screening model for importance: <code>{{ screening_model }}</code></li>
     <li>Importance: median ΔQLIKE under test-column permutation (mean reported too)</li>
+    <li>Inference baseline: <code>{{ baseline_model }}</code></li>
+    <li>Primary inference: block bootstrap of mean OOS ΔQLIKE
+        (block length={{ bootstrap_block_length }},
+        B={{ bootstrap_n_resamples }}, α={{ alpha }})</li>
+    <li>Secondary inference: HLN–DM with Newey–West lags={{ nw_lags }}
+        (not the primary significance claim)</li>
   </ul>
 
-  <h2>Model horse-race</h2>
-  <table>
-    <thead>
-      <tr>
-        <th>model</th>
-        <th>qlike</th>
-        <th>mse</th>
-        <th>mae</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for row in model_rows %}
-      <tr>
-        <td>{{ row.model }}</td>
-        <td>{{ "%.6f"|format(row.qlike) }}</td>
-        <td>{{ "%.6f"|format(row.mse) }}</td>
-        <td>{{ "%.6f"|format(row.mae) }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+<h2>Model horse-race</h2>
+<p class="meta">
+  “Significantly lower” is used only when the primary block-bootstrap test
+  rejects at α and mean ΔQLIKE favors the challenger. Otherwise use
+  “lower / higher mean OOS QLIKE”. Fold-mean rankings alone are descriptive.
+</p>
+<table>
+  <thead>
+    <tr>
+      <th>model</th>
+      <th>qlike</th>
+      <th>mse</th>
+      <th>mae</th>
+      <th>mean ΔQLIKE</th>
+      <th>bootstrap CI</th>
+      <th>bootstrap p</th>
+      <th>HLN p</th>
+      <th>vs HAR</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in model_rows %}
+    <tr>
+      <td>{{ row.model }}</td>
+      <td>{{ "%.6f"|format(row.qlike) }}</td>
+      <td>{{ "%.6f"|format(row.mse) }}</td>
+      <td>{{ "%.6f"|format(row.mae) }}</td>
+      <td>
+        {% if row.mean_delta_qlike is not none %}
+          {{ "%.6f"|format(row.mean_delta_qlike) }}
+        {% else %}—{% endif %}
+      </td>
+      <td>
+        {% if row.bootstrap_ci_low is not none and row.bootstrap_ci_high is not none %}
+          [{{ "%.6f"|format(row.bootstrap_ci_low) }},
+           {{ "%.6f"|format(row.bootstrap_ci_high) }}]
+        {% else %}—{% endif %}
+      </td>
+      <td>
+        {% if row.bootstrap_pvalue is not none %}
+          {{ "%.4f"|format(row.bootstrap_pvalue) }}
+        {% else %}—{% endif %}
+      </td>
+      <td>
+        {% if row.hln_pvalue is not none %}
+          {{ "%.4f"|format(row.hln_pvalue) }}
+        {% else %}—{% endif %}
+      </td>
+      <td>{{ row.comparison_note }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
 
 <h2>Ranked factors</h2>
 <table>

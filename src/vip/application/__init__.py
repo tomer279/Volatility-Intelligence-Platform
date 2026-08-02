@@ -22,6 +22,8 @@ ScreenConfig
     Walk-forward and importance settings for screening.
 screen_factors
     Load features, race models, rank factors, and persist artifacts.
+ScreenInferenceOptions
+    Bootstrap / HLN / non-overlap sensitivity settings for screening.
 """
 
 from vip.application.build_feature_matrix import (
@@ -40,6 +42,7 @@ from vip.application.run_baseline_experiment import (
 from vip.application.screen_factors import (
     FactorScreenResult,
     ScreenConfig,
+    ScreenInferenceOptions,
     screen_factors,
 )
 
@@ -53,5 +56,6 @@ __all__ = [
     "FactorScreenResult",
     "ScreenConfig",
     "screen_factors",
-    "FeatureMatrixExtras"
+    "FeatureMatrixExtras",
+    "ScreenInferenceOptions",
 ]

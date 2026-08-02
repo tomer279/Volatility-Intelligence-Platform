@@ -4,6 +4,12 @@ Exports
 -------
 run_walk_forward
     Fit/predict/score models across expanding folds.
+collect_walk_forward_predictions
+    Collect dated out-of-sample predictions across expanding folds.
+attach_qlike_losses
+    Add per-row QLIKE losses to a walk-forward prediction panel.
+collect_walk_forward_oos_losses
+    Collect per-row OOS QLIKE losses across expanding folds.
 """
 
 from __future__ import annotations
@@ -13,11 +19,20 @@ from typing import Any, Protocol
 import pandas as pd
 
 from vip.domain.errors import DataValidationError
-from vip.evaluation.metrics import mae, mse, qlike
+from vip.evaluation.metrics import (
+    DEFAULT_EPSILON, mae, mse, qlike, qlike_losses
+)
 from vip.evaluation.splitting import WalkForwardFold, generate_expanding_folds
 
 TARGET_COLUMN = "__target__"
 
+OOS_LOSS_COLUMNS: tuple[str, ...] = (
+    "model",
+    "fold_id",
+    "y_true",
+    "y_pred",
+    "qlike_loss",
+)
 
 class _SupportsFitPredict(Protocol):
     """Minimal model interface used by the walk-forward runner."""
@@ -30,11 +45,11 @@ class _SupportsFitPredict(Protocol):
 
 
 def run_walk_forward(
-    features: pd.DataFrame,
-    target: pd.Series,
-    models: dict[str, _SupportsFitPredict],
-    n_splits: int,
-    embargo_size: int,
+        features: pd.DataFrame,
+        target: pd.Series,
+        models: dict[str, _SupportsFitPredict],
+        n_splits: int,
+        embargo_size: int,
 ) -> pd.DataFrame:
     """Run walk-forward evaluation for one or more models.
 
@@ -78,8 +93,8 @@ def run_walk_forward(
 
 
 def _align_features_and_target(
-    features: pd.DataFrame,
-    target: pd.Series,
+        features: pd.DataFrame,
+        target: pd.Series,
 ) -> tuple[pd.DataFrame, pd.Series]:
     """Align features and target on common finite rows.
 
@@ -113,10 +128,10 @@ def _align_features_and_target(
 
 
 def _score_models_on_folds(
-    features: pd.DataFrame,
-    target: pd.Series,
-    models: dict[str, _SupportsFitPredict],
-    folds: list[WalkForwardFold],
+        features: pd.DataFrame,
+        target: pd.Series,
+        models: dict[str, _SupportsFitPredict],
+        folds: list[WalkForwardFold],
 ) -> list[dict[str, float | int | str]]:
     """Score every model on every fold.
 
@@ -145,11 +160,11 @@ def _score_models_on_folds(
 
 
 def _score_model_on_fold(
-    features: pd.DataFrame,
-    target: pd.Series,
-    model_name: str,
-    model: _SupportsFitPredict,
-    fold: WalkForwardFold,
+        features: pd.DataFrame,
+        target: pd.Series,
+        model_name: str,
+        model: _SupportsFitPredict,
+        fold: WalkForwardFold,
 ) -> dict[str, float | int | str]:
     """Fit one model on a fold and return metric records.
 
@@ -191,11 +206,11 @@ def _score_model_on_fold(
 
 
 def collect_walk_forward_predictions(
-    features: pd.DataFrame,
-    target: pd.Series,
-    models: dict[str, _SupportsFitPredict],
-    n_splits: int,
-    embargo_size: int,
+        features: pd.DataFrame,
+        target: pd.Series,
+        models: dict[str, _SupportsFitPredict],
+        n_splits: int,
+        embargo_size: int,
 ) -> pd.DataFrame:
     """Collect out-of-sample predictions across expanding folds.
 
@@ -242,11 +257,11 @@ def collect_walk_forward_predictions(
 
 
 def _predictions_for_model_on_folds(
-    features: pd.DataFrame,
-    target: pd.Series,
-    model_name: str,
-    model: _SupportsFitPredict,
-    folds: list[WalkForwardFold],
+        features: pd.DataFrame,
+        target: pd.Series,
+        model_name: str,
+        model: _SupportsFitPredict,
+        folds: list[WalkForwardFold],
 ) -> pd.DataFrame:
     """Fit/predict one model on every fold and stack test rows."""
     pieces: list[pd.DataFrame] = []
@@ -268,3 +283,79 @@ def _predictions_for_model_on_folds(
         )
         pieces.append(piece)
     return pd.concat(pieces, axis=0)
+
+
+def attach_qlike_losses(
+        predictions: pd.DataFrame,
+        epsilon: float = DEFAULT_EPSILON,
+) -> pd.DataFrame:
+    """Add per-row QLIKE losses to a walk-forward prediction panel.
+
+    Rows are treated as already paired. This supports stacked multi-model
+    panels whose date index repeats across models.
+    """
+    required = {"model", "fold_id", "y_true", "y_pred"}
+    missing = sorted(required.difference(predictions.columns))
+    if missing:
+        missing_text = ", ".join(missing)
+        raise DataValidationError(
+            f"predictions missing required columns: {missing_text}."
+        )
+    if predictions.empty:
+        raise DataValidationError("predictions must be non-empty.")
+    if epsilon <= 0:
+        raise DataValidationError("epsilon must be positive.")
+
+    frame = predictions.copy()
+    # Positional pairing: avoid index align (duplicate dates across models).
+    y_true = pd.Series(frame["y_true"].to_numpy(dtype=float))
+    y_pred = pd.Series(frame["y_pred"].to_numpy(dtype=float))
+    frame["qlike_loss"] = qlike_losses(y_true, y_pred, epsilon=epsilon).to_numpy(
+        dtype=float
+    )
+    return frame
+
+
+def collect_walk_forward_oos_losses(
+        features: pd.DataFrame,
+        target: pd.Series,
+        models: dict[str, _SupportsFitPredict],
+        n_splits: int,
+        embargo_size: int,
+) -> pd.DataFrame:
+    """Collect per-row OOS QLIKE losses across expanding folds.
+    Shares fits with ``collect_walk_forward_predictions``: one walk-forward
+    pass, then elementwise QLIKE.
+
+    Parameters
+    ----------
+    features : pandas.DataFrame
+        Feature matrix indexed by session date.
+    target : pandas.Series
+        Target series aligned to ``features``.
+    models : dict of str to model
+        Mapping of model name to ``fit`` / ``predict`` objects.
+    n_splits : int
+        Number of expanding test folds.
+    embargo_size : int
+        Embargo length in rows between train and test.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Long-form panel with columns ``model``, ``fold_id``, ``y_true``,
+        ``y_pred``, ``qlike_loss``, indexed by session date.
+
+    Raises
+    ------
+    DataValidationError
+        If inputs are empty, misaligned, or no models are provided.
+    """
+    predictions = collect_walk_forward_predictions(
+        features=features,
+        target=target,
+        models=models,
+        n_splits=n_splits,
+        embargo_size=embargo_size,
+    )
+    return attach_qlike_losses(predictions)

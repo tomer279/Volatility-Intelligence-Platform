@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 pytest.importorskip("fastapi")
+pytest.importorskip("httpx2")
 from fastapi.testclient import TestClient
 
 from vip.api.app import ARTIFACTS_ROOT_ENV_VAR, app

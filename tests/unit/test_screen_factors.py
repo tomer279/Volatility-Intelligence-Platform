@@ -73,10 +73,17 @@ def test_screen_factors_persists_artifacts(tmp_path: Path) -> None:
     for name in (
         "metrics.json",
         "folds.json",
+        "oos_losses.json",
+        "inference.json",
+        "inference_sensitivity.json",
         "importance.json",
         "factor_ranking.json",
         "metrics_by_regime.json",
         "screen_meta.json",
         "importance_plot.png",
+        "report.html",
     ):
         assert (experiment_dir / name).is_file()
+
+    assert "mean_delta_qlike" in result.tables.summary.columns
+    assert "bootstrap_pvalue" in result.tables.summary.columns

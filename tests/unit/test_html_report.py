@@ -10,10 +10,16 @@ from vip.reporting.experiment_summary import (
     ReportMeta,
     ScreenReportPayload,
     build_factor_screen_context,
-    InferenceReportMeta
+    InferenceReportMeta,
+    MultiHorizonReportMeta,
+    MultiHorizonReportPayload,
+    build_multi_horizon_context,
 )
-from vip.reporting.html_report import render_factor_screen_report, write_html_report
-
+from vip.reporting.html_report import (
+    render_factor_screen_report,
+    write_html_report,    
+    render_multi_horizon_screen_report
+)
 
 def _payload() -> ScreenReportPayload:
     """Build a tiny screen payload for report tests."""
@@ -99,3 +105,53 @@ def test_write_html_report(tmp_path: Path) -> None:
     path = write_html_report(tmp_path / "report.html", html)
     assert path.is_file()
     assert "Caveats" in path.read_text(encoding="utf-8")
+
+
+def test_render_multi_horizon_skill_by_horizon_section() -> None:
+    """Study memo must include Skill by horizon columns."""
+    summary = pd.DataFrame(
+        {
+            "horizon_days": [1, 1, 5],
+            "model": ["ridge", "har_rv_ols", "ridge"],
+            "qlike": [0.10, 0.12, 0.11],
+            "mse": [0.01, 0.02, 0.015],
+            "mae": [0.05, 0.06, 0.055],
+            "mean_delta_qlike": [-0.02, None, -0.01],
+            "bootstrap_ci_low": [-0.03, None, -0.02],
+            "bootstrap_ci_high": [-0.01, None, 0.0],
+            "bootstrap_pvalue": [0.02, None, 0.08],
+            "significant_vs_baseline": [True, None, False],
+        }
+    )
+    payload = MultiHorizonReportPayload(
+        symbol="SPY",
+        study_id="multi-horizon-screen-spy-test",
+        horizon_summary=summary,
+    )
+    meta = MultiHorizonReportMeta(
+        horizons=(1, 5, 21),
+        per_horizon=(
+            {
+                "horizon_days": 1,
+                "target_column": "target_rv_cc_1d",
+                "embargo_size": 1,
+                "nw_lags": 0,
+                "bootstrap_block_length": 10,
+            },
+            {
+                "horizon_days": 5,
+                "target_column": "target_rv_cc_5d",
+                "embargo_size": 5,
+                "nw_lags": 4,
+                "bootstrap_block_length": 15,
+            },
+        ),
+    )
+    html = render_multi_horizon_screen_report(
+        build_multi_horizon_context(payload, meta)
+    )
+    assert "Skill by horizon" in html
+    assert "significant_vs_baseline" in html
+    assert "horizon_days" in html
+    assert "significantly lower mean OOS QLIKE vs HAR (bootstrap)" in html
+    assert "nan" not in html.lower()

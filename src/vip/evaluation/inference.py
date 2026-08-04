@@ -4,6 +4,8 @@ Exports
 -------
 BootstrapInferenceOptions
     Block-bootstrap settings (length, resamples, alpha, seed).
+BootstrapBlockBounds
+    Inclusive allowed interval for ``block_length`` (defaults 10–20).
 BootstrapResult
     Mean gap, percentile CI, and two-sided bootstrap p-value.
 DMResult
@@ -28,17 +30,23 @@ block_bootstrap_nonoverlap_sensitivity
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 import pandas as pd
 from scipy import stats
 
 from vip.domain.errors import DataValidationError
+from vip.evaluation.horizon_defaults import (
+    allowed_bootstrap_block_range,
+    default_bootstrap_block_length,
+)
 
-DEFAULT_BLOCK_LENGTH = 15
-MIN_BLOCK_LENGTH = 10
-MAX_BLOCK_LENGTH = 20
+DEFAULT_HORIZON_DAYS = 5
+DEFAULT_BLOCK_LENGTH = default_bootstrap_block_length(DEFAULT_HORIZON_DAYS)
+MIN_BLOCK_LENGTH, MAX_BLOCK_LENGTH = allowed_bootstrap_block_range(
+    DEFAULT_HORIZON_DAYS
+)
 DEFAULT_N_RESAMPLES = 1999
 DEFAULT_ALPHA = 0.05
 DEFAULT_RANDOM_SEED = 0
@@ -127,19 +135,72 @@ class NonOverlapSensitivityResult:
 
 
 @dataclass(frozen=True, slots=True)
+class BootstrapBlockBounds:
+    """Inclusive allowed interval for moving-block bootstrap length.
+
+    Attributes
+    ----------
+    minimum : int
+        Inclusive lower bound (default 10; legacy / h=5).
+    maximum : int
+        Inclusive upper bound (default 20; legacy / h=5).
+
+    Methods
+    -------
+    contains(block_length)
+        Return True when ``block_length`` lies in ``[minimum, maximum]``.
+    describe()
+        Return a short ``[low, high]`` string.
+    """
+
+    minimum: int = MIN_BLOCK_LENGTH
+    maximum: int = MAX_BLOCK_LENGTH
+
+    def contains(self, block_length: int) -> bool:
+        """Return whether ``block_length`` is inside the inclusive interval.
+
+        Parameters
+        ----------
+        block_length : int
+            Candidate block length in trading days.
+
+        Returns
+        -------
+        bool
+            True when ``minimum <= block_length <= maximum``.
+        """
+        return self.minimum <= block_length <= self.maximum
+
+    def describe(self) -> str:
+        """Return a short human-readable summary.
+
+        Returns
+        -------
+        str
+            Compact ``[minimum, maximum]`` description.
+        """
+        return f"[{self.minimum}, {self.maximum}]"
+
+
+@dataclass(frozen=True, slots=True)
 class BootstrapInferenceOptions:
     """Options for block-bootstrap inference on mean loss differentials.
 
     Parameters
     ----------
     block_length : int, default 15
-        Contiguous block length in trading days (must be in 10–20).
+        Contiguous block length in trading days. Must lie in
+        ``block_bounds`` (defaults to the locked h=5 range 10–20).
     n_resamples : int, default 1999
         Number of bootstrap replications.
     alpha : float, default 0.05
         Two-sided significance level for the percentile CI / test.
     random_seed : int, default 0
         RNG seed for reproducible block draws.
+    block_bounds : BootstrapBlockBounds, optional
+        Inclusive allowed interval. For h=21 use
+        ``BootstrapBlockBounds(15, 42)`` (or the tuple from
+        ``allowed_bootstrap_block_range(21)``) so default length 21 is legal.
 
     Methods
     -------
@@ -153,30 +214,20 @@ class BootstrapInferenceOptions:
     n_resamples: int = DEFAULT_N_RESAMPLES
     alpha: float = DEFAULT_ALPHA
     random_seed: int = DEFAULT_RANDOM_SEED
+    block_bounds: BootstrapBlockBounds = field(
+        default_factory=BootstrapBlockBounds
+    )
 
     def validate(self) -> None:
         """Raise ``DataValidationError`` when options are invalid."""
-        if self.block_length < MIN_BLOCK_LENGTH or self.block_length > MAX_BLOCK_LENGTH:
+        if not self.block_bounds.contains(self.block_length):
             raise DataValidationError(
-                f"block_length must be in [{MIN_BLOCK_LENGTH}, {MAX_BLOCK_LENGTH}]."
+                f"block_length must be in {self.block_bounds.describe()}."
             )
         if self.n_resamples < 1:
             raise DataValidationError("n_resamples must be at least 1.")
         if not 0.0 < self.alpha < 1.0:
             raise DataValidationError("alpha must be in (0, 1).")
-
-    def describe(self) -> str:
-        """Return a short human-readable summary.
-
-        Returns
-        -------
-        str
-            Compact description of bootstrap options.
-        """
-        return (
-            f"block_length={self.block_length}, n_resamples={self.n_resamples}, "
-            f"alpha={self.alpha}, random_seed={self.random_seed}"
-        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -663,8 +714,8 @@ def non_overlapping_index(index: pd.Index, horizon_days: int) -> pd.Index:
 
 
 def non_overlapping_subsample(
-    series: pd.Series,
-    horizon_days: int,
+        series: pd.Series,
+        horizon_days: int,
 ) -> pd.Series:
     """Thin a time-ordered series to non-overlapping horizon spacing.
 
@@ -693,9 +744,9 @@ def non_overlapping_subsample(
 
 
 def block_bootstrap_nonoverlap_sensitivity(
-    differential: pd.Series,
-    horizon_days: int,
-    options: BootstrapInferenceOptions | None = None,
+        differential: pd.Series,
+        horizon_days: int,
+        options: BootstrapInferenceOptions | None = None,
 ) -> tuple[BootstrapResult | None, int, int, str]:
     """Block-bootstrap mean(d) on a non-overlapping horizon subsample.
 

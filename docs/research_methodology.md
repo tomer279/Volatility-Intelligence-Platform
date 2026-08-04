@@ -1,6 +1,6 @@
 # Research Methodology
 
-This document describes the quantitative methodology used across milestones 1–7
+This document describes the quantitative methodology used across milestones 1–8
 of the Volatility Intelligence Platform.  It is written for a technically
 literate reader (quant analyst, PM, or researcher) and references the locked
 defaults from `plan.md`.
@@ -89,6 +89,34 @@ observation on date *t*, the most recent prior value is used.
 VIX features are enabled with the `--with-vix` flag.  They are associative
 (contemporaneously correlated with equity vol), not causal — see §10.
 
+
+### 2.6  Jump-robust daily proxies (Milestone 8 stretch)
+
+| Column | Description |
+| ------ | ----------- |
+| `bpv_cc_1d` / `5d` / `21d` | Trailing daily bipower volatility $\sqrt{\mathrm{BPV}}$ at HAR windows |
+| `jump_prop_1d` / `5d` / `21d` | $\max(0, \mathrm{RV} - \mathrm{BPV}) / \mathrm{RV}$ (0 when RV = 0) |
+
+**Definition (daily proxy).** For close-to-close log returns $r_t$,
+
+$$
+\mathrm{BPV}_t(w) = \frac{\pi}{2} \sum |r_i||r_{i-1}|
+$$
+
+over adjacent pairs inside the trailing window ending at $t$ (for $w \ge 2$,
+$w-1$ pairs among the last $w$ returns; for $w=1$, the single pair
+$|r_t||r_{t-1}|$). $\mathrm{RV}$ is the usual sum of squared returns over
+the same window. Features are trailing only (information $\le t$).
+
+**Important limitation.** These are **daily close-to-close proxies**, not
+Barndorff–Nielsen–Shephard estimators from high-frequency / tick returns.
+Do not interpret magnitudes as true jump variation from intraday bipower.
+Enable via registry opt-in (`create_default_registry(include_jump=True)`).
+The multi-horizon CLI does **not** yet expose `--with-jump-features`;
+`vip screen-horizons` still builds core families only (+ optional VIX).
+Core default families remain returns, har, range, volume (+ optional VIX).
+
+
 ---
 
 ## 3  Primary Metric
@@ -117,7 +145,7 @@ log-of-zero instability.
 | ---------------- | ------------------------------------------------- |
 | Mode             | Expanding window                                  |
 | Number of splits | 5                                                 |
-| Embargo          | ≥ 5 trading days between train end and test start |
+| Embargo          | Default single-horizon path: 5 sessions. Multi-horizon (M8): `embargo_size = h` per horizon (see §11). |
 
 
 Models are refit on each training fold.  Feature scaling (when used) is fit on
@@ -281,6 +309,10 @@ five fold-mean QLIKE values alone.
 | α | 0.05 (two-sided percentile CI) |
 | Seed | 0 |
 
+For the legacy single-horizon screen (`h = 5`), the table above is the locked
+default. Multi-horizon studies use **horizon-aware** block lengths and ranges
+(§11); do not force ℓ ∈ [10, 20] when `h = 21`.
+
 Report mean ΔQLIKE, bootstrap CI, and two-sided bootstrap p-value for
 H0: E[`d_t`] = 0. Block (not i.i.d. day) resampling is required because
 overlapping 5-day labels correlate nearby `d_t`.
@@ -319,7 +351,92 @@ a formal estimator; instead it (a) uses block bootstrap with length in 10–20,
 subsample footnote.
 
 
-## 11  Caveats
+## 11  Multi-horizon evaluation (Milestone 8)
+
+Milestone 8 promotes forecast horizon from a single config knob to a
+**first-class study dimension**. One orchestrated run screens the same
+horse-race across locked horizons **1 / 5 / 21** trading days, reusing the
+M7 inference stack per horizon (not a parallel CV or significance engine).
+
+Entry points: application `screen_multi_horizon` and CLI `vip screen-horizons`.
+Single-horizon `vip screen` / `vip run` remain valid; primary default horizon
+stays **5**.
+
+### 11.1  Locked horizons and targets
+
+| Horizon `h` | Target column | Role |
+| ----------- | ------------- | ---- |
+| 1 | `target_rv_cc_1d` | Next-day forward close-to-close RV |
+| 5 | `target_rv_cc_5d` | Next-week (legacy primary) |
+| 21 | `target_rv_cc_21d` | Next-month (~21 trading days) |
+
+For each `h`, features are built (or loaded) so the matrix carries
+`target_rv_cc_{h}d`. Predictors remain information set ≤ *t*. Walk-forward
+is expanding with `n_splits = 5`. Primary metric remains QLIKE; MSE / MAE
+are descriptive.
+
+### 11.2  Horizon-scaled validation and inference defaults
+
+Overlapping *h*-step labels induce dependence of order ~*h*. Defaults are
+centralized in `vip.evaluation.horizon_defaults` and applied via
+`settings_for_horizon(h)`:
+
+| Horizon `h` | `embargo_size` | `nw_lags` (= `h − 1`) | Default `bootstrap_block_length` | Allowed block range |
+| ----------- | -------------- | --------------------- | -------------------------------- | ------------------- |
+| 1 | 1 | 0 | **10** | 5–15 |
+| 5 | 5 | 4 | **15** | 10–20 (M7 unchanged) |
+| 21 | 21 | 20 | **21** | 15–42 |
+
+- **Embargo = h** — train/test separation for label overlap; still **not** a
+  significance test (§10.1).
+- **NW lags = h − 1** — including **0** when `h = 1` on the optional HLN–DM path.
+- **Block length** tracks horizon so `h = 21` is not forced into an
+  under-blocked ℓ=15; validation must use horizon-specific bounds (legacy
+  global [10, 20] alone would reject the h=21 default).
+
+### 11.3  Per-horizon inference (M7 contract carries over)
+
+For each horizon separately:
+
+1. Run the horse-race (`har_rv_ols`, `ridge`, `lasso`, + `random_forest` when
+   in the screen) under expanding walk-forward with `embargo_size = h`.
+2. Persist per-row OOS QLIKE losses.
+3. For each challenger vs baseline **`har_rv_ols`**, compute mean ΔQLIKE and
+   **moving block bootstrap** CI / p-value with the horizon’s default block
+   length (primary).
+4. Optionally report HLN–DM + Newey–West with `nw_lags = h − 1` (secondary).
+
+**Wording (unchanged from M7, applied per horizon):** claim
+“significantly better” / “significantly lower mean OOS QLIKE vs HAR” **only**
+when the **primary bootstrap** rejects at α (default 0.05) **and** mean
+ΔQLIKE &lt; 0. Point QLIKE rankings across horizons remain descriptive.
+
+### 11.4  Cross-horizon summary
+
+Study root (example):
+`data/artifacts/multi-horizon-screen-{symbol}-{date}/`.
+
+| Artifact | Role |
+| -------- | ---- |
+| `screen_meta.json` | Horizons; per-h embargo / NW / block length; models; α |
+| `h{h}d/` | Per-horizon screen artifacts (`metrics.json`, `oos_losses.json`, `inference.json`, …) |
+| `horizon_summary.json` | Rows keyed by `(horizon_days, model)`: QLIKE / MSE / MAE, mean ΔQLIKE, bootstrap CI / p, `significant_vs_baseline` |
+| `report.html` | Study memo with **Skill by horizon** table + locked wording |
+
+Do not mix unlabeled multi-horizon metrics in one table without a
+`horizon_days` key.
+
+### 11.5  Jump-robust features (stretch)
+
+When the `jump` registry family is enabled (§2.6), columns are **daily**
+bipower / jump-proportion proxies, not high-frequency Barndorff–Nielsen–
+Shephard estimators. Do not narrate them as tick-based jump variation in
+the multi-horizon memo. Flagship `vip screen-horizons` currently omits jump
+unless features are built offline with `include_jump=True`
+(CLI `--with-jump-features` not wired).
+
+
+## 12  Caveats
 
 1. **No causal claims.**  All importance measures (permutation ΔQLIKE, SHAP) are
   associative.  A high-ranked feature predicts well; it does not *cause*
@@ -347,3 +464,5 @@ subsample footnote.
    inference are descriptive, not findings.
 9. **Overlap.** Overlapping RV labels require block bootstrap (and HAC lag
    h−1); i.i.d. day bootstrap understates dependence.
+10. **Daily bipower ≠ tick bipower.** Jump-family columns are daily proxies for
+    research screening only; they are not substitutes for high-frequency RV.

@@ -12,14 +12,18 @@ run_screen_batch
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 
 import pandas as pd
 
 from vip.application.build_feature_matrix import build_and_persist_feature_matrix
 from vip.application.ingest_market_data import ingest_market_data
-from vip.application.screen_factors import ScreenConfig, screen_factors
+from vip.application.screen_factors import (
+    ScreenConfig,
+    screen_factors,
+    settings_for_horizon,
+)
 from vip.domain.errors import DataValidationError, PersistenceError
 from vip.domain.protocols import MarketDataSource
 from vip.domain.value_objects import DateRange, ExperimentId, Symbol
@@ -146,11 +150,16 @@ def run_screen_batch(
             source, market_store, feature_store, symbol, config,
         )
 
+        horizon_defaults = settings_for_horizon(config.horizon_days)
         result = screen_factors(
             feature_store=feature_store,
             artifact_store=artifact_store,
             symbol=symbol,
-            config=config.screen_config,
+            config=replace(
+                config.screen_config,
+                embargo_size=horizon_defaults.config.embargo_size,
+            ),
+            inference=horizon_defaults.inference,
         )
         experiments[symbol] = result.identity.experiment_id
 

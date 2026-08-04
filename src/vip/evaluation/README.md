@@ -16,6 +16,7 @@ including statistical inference on out-of-sample QLIKE gaps vs HAR.
 - `stability.py` - Mean/median importance and top-k hit rate across folds.
 - `regimes.py` - Locked COVID/2022 windows and regime-sliced OOS metrics.
 - `shap_importance.py` - Optional TreeSHAP importance (RF; requires `shap`).
+- `horizon_defaults.py` - Embargo / bootstrap-block defaults + validation for h∈{1,5,21}.
 
 ## Key APIs (walk-forward / importance)
 - `mse(y_true, y_pred)` - Mean squared error.
@@ -48,14 +49,25 @@ including statistical inference on out-of-sample QLIKE gaps vs HAR.
 - `block_bootstrap_nonoverlap_sensitivity(...)` - Bootstrap on the thinned differential.
 - `NonOverlapSensitivityResult` - JSON-friendly footnote row payload.
 - `summarize_nonoverlap_sensitivity(oos_losses, options=None)` - Footnote bootstrap table.
+- `default_embargo_for_horizon(horizon_days)` - Embargo = horizon.
+- `default_bootstrap_block_length(horizon_days)` - Locked ℓ for h∈{1,5,21}.
+- `allowed_bootstrap_block_range(horizon_days)` / `validate_bootstrap_block_length(...)`.
+- `BootstrapBlockBounds` - Pass into `BootstrapInferenceOptions` for h≠5 ranges.
 
-## Research defaults (M7)
+## Research defaults (M7 / M8)
 - Primary inference: block bootstrap of mean OOS ΔQLIKE vs `har_rv_ols`
-  (block length 15, range 10–20; B=1999; α=0.05; seed 0)
-- Secondary: HLN–DM with NW lags = horizon − 1 (4 for 5-day target)
-- “Significantly better” only when primary bootstrap rejects at α and ΔQLIKE < 0
-- Non-overlapping every-horizon subsample is a footnote only
-- Embargo blocks train/test leakage; it is not a significance test
+  (B=1999; α=0.05; seed 0).
+- Horizon-aware block defaults (M8): ℓ=**10 / 15 / 21** with ranges
+  **5–15 / 10–20 / 15–42** for h=**1 / 5 / 21**
+  (`default_bootstrap_block_length`, `BootstrapBlockBounds` via
+  `settings_for_horizon`). Legacy single-horizon path remains h=5 → ℓ=15.
+- Embargo for multi-horizon screens: `default_embargo_for_horizon(h)` → `h`.
+- Secondary: HLN–DM with NW lags = `nw_lags_for_horizon(h)` (= `h − 1`).
+- “Significantly better” only when primary bootstrap rejects at α and ΔQLIKE < 0.
+- Non-overlapping every-horizon subsample is a footnote only.
+- Embargo blocks train/test leakage; it is not a significance test.
+- Multi-horizon **orchestration** lives in `vip.application.screen_multi_horizon`
+  (`vip screen-horizons`); this package owns metrics, splits, and inference math.
 
 ## Notes
 - Predictions are clipped by a small epsilon inside QLIKE to avoid non-positive forecasts.

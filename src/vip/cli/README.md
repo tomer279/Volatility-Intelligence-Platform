@@ -13,6 +13,7 @@ It should remain a thin interface layer that delegates work to application/use-c
 - `commands/screen.py` - Registers the `vip screen` command.
 - `commands/__init__.py` - Re-exports command registration helpers.
 - `commands/screen_batch.py` - Registers the `vip screen-batch` command.
+- `commands/screen_multi_horizon.py` - Registers the `vip screen-horizons` command.
 - `commands/run.py` - Registers the `vip run` command.
 
 ## Key APIs
@@ -27,6 +28,8 @@ It should remain a thin interface layer that delegates work to application/use-c
 - `ingest_command(app)` / `features_command(app)` / `evaluate_command(app)` / `screen_command(app)` - Command registrars.
 - `screen-batch` command - Runs multi-symbol screening with `--skip-ingest` / `--skip-features` flags.
 - `screen_batch_command(app)` - Command registrar.
+- `screen-horizons` command - Multi-horizon study (`--symbol`, `--horizons`, `--with-vix`, `--skip-features`).
+- `screen_multi_horizon_command(app)` - Command registrar.
 - `run` command - One-shot ingest → features → screen (`--symbol` or `--symbols`, `--with-vix`, skip flags).
 - `run_command(app)` - Command registrar.
 
@@ -47,6 +50,9 @@ From an installed editable environment:
 - `vip screen --help`
 - `vip screen --symbol SPY`
 - `vip screen --symbol SPY --n-splits 5 --embargo 5 --n-repeats 5 --top-k 3`
+- `vip screen-horizons --help`
+- `vip screen-horizons --symbol SPY --with-vix`
+- `vip screen-horizons --symbol SPY --horizons 1,5,21 --skip-features`
 - `vip screen-batch --symbols SPY,QQQ,IWM`
 - `vip screen-batch --symbols SPY,QQQ --skip-ingest --skip-features`
 - `vip run --symbol SPY --with-vix`
@@ -64,3 +70,7 @@ From an installed editable environment:
   `inference.json`, optional `inference_sensitivity.json`, and `report.html`.
 - Delegate business logic to application modules to preserve testability.
 - `run` orchestrates ingest (including VIX when `--with-vix`), features, and screening; prints report paths under `data/artifacts/`.
+- `screen-horizons` rebuilds features per horizon unless `--skip-features`; writes
+  `data/artifacts/multi-horizon-screen-{symbol}-{date}/` including `horizon_summary.json`
+  and study-level `report.html`. `vip screen` remains the single-horizon entrypoint (default h=5).
+  

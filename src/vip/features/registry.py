@@ -7,7 +7,8 @@ FeatureSpec
 FeatureRegistry
     Register builders and assemble selected feature columns.
 create_default_registry
-    Build a registry preloaded with Milestone 2 feature families.
+    Build a registry with Milestone 2 families; optional ``jump`` via
+    ``include_jump=True``.
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ import pandas as pd
 
 from vip.domain.errors import DataValidationError
 from vip.features.har import build_har_features
+from vip.features.jump_features import build_jump_features
 from vip.features.range_features import build_range_features
 from vip.features.returns import build_return_features
 from vip.features.volume_features import build_volume_features
@@ -170,13 +172,20 @@ class FeatureRegistry:
         return pd.concat(frames, axis=1)
 
 
-def create_default_registry() -> FeatureRegistry:
+def create_default_registry(*, include_jump: bool = False) -> FeatureRegistry:
     """Create a registry preloaded with Milestone 2 feature families.
+
+    
+    Parameters
+    ----------
+    include_jump : bool, default False
+        When True, also register the opt-in ``jump`` family (M8 stretch).
 
     Returns
     -------
     FeatureRegistry
-        Registry containing returns, har, range, and volume families.
+        Registry containing returns, har, range, and volume families,
+        optionally plus ``jump``.
     """
     registry = FeatureRegistry()
     registry.register(
@@ -207,4 +216,15 @@ def create_default_registry() -> FeatureRegistry:
             description="Volume z-score features.",
         )
     )
+    if include_jump:
+        registry.register(
+            FeatureSpec(
+                name="jump",
+                builder=build_jump_features,
+                description=(
+                    "Daily bipower-vol and jump-proportion proxies "
+                    "(not tick bipower)."
+                ),
+            )
+        )
     return registry

@@ -6,6 +6,10 @@ ScreenConfig
     Walk-forward and importance settings for a screen run.
 ScreenInferenceOptions
     Bootstrap / HLN settings for horse-race inference vs HAR.
+target_column_for_horizon
+    Name ``target_rv_cc_{h}d`` for a forecast horizon.
+settings_for_horizon
+    Build ``ScreenConfig`` + ``ScreenInferenceOptions`` with M8 defaults.
 ScreenArtifactContext
     Persist-time screen + inference settings for artifacts.
 FactorScreenResult
@@ -22,14 +26,24 @@ from pathlib import Path
 
 import pandas as pd
 
-from vip.domain.errors import PersistenceError
+from vip.domain.errors import DataValidationError, PersistenceError
 from vip.domain.value_objects import ExperimentId, Symbol
 from vip.evaluation.comparison import (
     InferenceSummaryOptions,
     summarize_with_inference,
     summarize_nonoverlap_sensitivity
 )
-from vip.evaluation.inference import BootstrapInferenceOptions, nw_lags_for_horizon
+from vip.evaluation.horizon_defaults import (
+    allowed_bootstrap_block_range,
+    default_bootstrap_block_length,
+    default_embargo_for_horizon,
+)
+from vip.evaluation.inference import (
+    BootstrapBlockBounds,
+    BootstrapInferenceOptions,
+    nw_lags_for_horizon,
+)
+from vip.features.targets import TARGET_NAME_PREFIX
 from vip.evaluation.importance import (
     ImportanceOptions,
     WalkForwardSpec,
@@ -62,7 +76,6 @@ from vip.reporting.html_report import render_factor_screen_report, write_html_re
 DEFAULT_BASELINE_MODEL = "har_rv_ols"
 DEFAULT_HORIZON_DAYS = 5
 DEFAULT_INCLUDE_HLN_DM = True
-DEFAULT_TARGET_COLUMN = "target_rv_cc_5d"
 DEFAULT_N_SPLITS = 5
 DEFAULT_EMBARGO_SIZE = 5
 DEFAULT_N_REPEATS = 5
@@ -71,6 +84,7 @@ DEFAULT_RANDOM_SEED = 0
 SCREENING_MODEL_NAME = "ridge"
 HORSE_RACE_MODELS = ("har_rv_ols", "ridge", "lasso")
 DEFAULT_INCLUDE_NONOVERLAP_SENSITIVITY = True
+_MIN_HORIZON_DAYS = 1
 
 
 @dataclass(frozen=True, slots=True)
@@ -82,7 +96,9 @@ class ScreenConfig:
     n_splits : int, default 5
         Number of expanding walk-forward folds.
     embargo_size : int, default 5
-        Embargo length in trading sessions.
+        Embargo length in trading sessions. For multi-horizon runs set
+        ``embargo_size = horizon_days`` (see ``settings_for_horizon`` /
+        ``default_embargo_for_horizon``).
     n_repeats : int, default 5
         Permutation repeats per feature per fold.
     top_k : int, default 3
@@ -435,6 +451,8 @@ class ScreenArtifactContext:
             "top_feature": top_feature,
             "baseline_model": inference.baseline_model,
             "horizon_days": inference.horizon_days,
+            "target_column": target_column_for_horizon(inference.horizon_days),
+            "embargo_size": self.config.embargo_size,
             "nw_lags": nw_lags_for_horizon(inference.horizon_days),
             "bootstrap_block_length": inference.bootstrap.block_length,
             "bootstrap_n_resamples": inference.bootstrap.n_resamples,
@@ -444,12 +462,78 @@ class ScreenArtifactContext:
         }
 
 
+def target_column_for_horizon(horizon_days: int) -> str:
+    """Return the locked close-to-close target column for a horizon.
+
+    Parameters
+    ----------
+    horizon_days : int
+        Forecast horizon in trading days (must be >= 1).
+
+    Returns
+    -------
+    str
+        Column name ``target_rv_cc_{horizon_days}d``.
+
+    Raises
+    ------
+    DataValidationError
+        If ``horizon_days`` is less than 1.
+    """
+    if horizon_days < _MIN_HORIZON_DAYS:
+        raise DataValidationError("horizon_days must be at least 1.")
+    return f"{TARGET_NAME_PREFIX}{horizon_days}d"
+
+
+def settings_for_horizon(horizon_days: int) -> ScreenArtifactContext:
+    """Build screen + inference settings for one forecast horizon.
+
+    Uses Agent A helpers: ``embargo_size = horizon_days``, horizon-aware
+    bootstrap ``block_length`` and ``block_bounds``. Defaults match the
+    locked M8 table for ``h ∈ {1, 5, 21}``.
+
+    Parameters
+    ----------
+    horizon_days : int
+        Forecast horizon in trading days. Must be a locked screen horizon
+        when using default bootstrap length (see
+        ``default_bootstrap_block_length``).
+
+    Returns
+    -------
+    ScreenArtifactContext
+        Validated ``config`` + ``inference`` ready for ``screen_factors``.
+
+    Raises
+    ------
+    DataValidationError
+        If horizon or derived bootstrap settings are invalid.
+    """
+    embargo = default_embargo_for_horizon(horizon_days)
+    block_length = default_bootstrap_block_length(horizon_days)
+    low, high = allowed_bootstrap_block_range(horizon_days)
+    config = ScreenConfig(embargo_size=embargo)
+    inference = ScreenInferenceOptions(
+        horizon_days=horizon_days,
+        bootstrap=BootstrapInferenceOptions(
+            block_length=block_length,
+            block_bounds=BootstrapBlockBounds(
+                minimum=low,
+                maximum=high,
+            ),
+        ),
+    )
+    config.validate()
+    inference.validate()
+    return ScreenArtifactContext(config=config, inference=inference)
+
+
 def screen_factors(
-    feature_store: ParquetFeatureMatrixStore,
-    artifact_store: FilesystemArtifactStore,
-    symbol: Symbol,
-    config: ScreenConfig | None = None,
-    inference: ScreenInferenceOptions | None = None,
+        feature_store: ParquetFeatureMatrixStore,
+        artifact_store: FilesystemArtifactStore,
+        symbol: Symbol,
+        config: ScreenConfig | None = None,
+        inference: ScreenInferenceOptions | None = None,
 ) -> FactorScreenResult:
     """Load features, race models, rank factors, run inference, and persist artifacts.
 
@@ -478,7 +562,10 @@ def screen_factors(
         If the feature matrix is missing or malformed.
     """
     context = _resolve_artifact_context(config, inference)
-    features, target = _load_features_and_target(feature_store, symbol)
+    target_column = target_column_for_horizon(context.inference.horizon_days)
+    features, target = _load_features_and_target(
+        feature_store, symbol, target_column
+    )
     tables, shap_outputs = _build_screen_tables(
         features, target, context.config, context.inference
     )
@@ -547,8 +634,9 @@ def _assemble_screen_result(
 
 
 def _load_features_and_target(
-    feature_store: ParquetFeatureMatrixStore,
-    symbol: Symbol,
+        feature_store: ParquetFeatureMatrixStore,
+        symbol: Symbol,
+        target_column: str,
 ) -> tuple[pd.DataFrame, pd.Series]:
     """Load and split the persisted feature matrix."""
     if not feature_store.exists(symbol):
@@ -556,12 +644,12 @@ def _load_features_and_target(
             f"No feature matrix found for {symbol.value}. Run features first."
         )
     matrix = feature_store.load(symbol)
-    if DEFAULT_TARGET_COLUMN not in matrix.columns:
+    if target_column not in matrix.columns:
         raise PersistenceError(
-            f"Feature matrix missing target column '{DEFAULT_TARGET_COLUMN}'."
+            f"Feature matrix missing target column '{target_column}'."
         )
-    target = matrix[DEFAULT_TARGET_COLUMN]
-    features = matrix.drop(columns=[DEFAULT_TARGET_COLUMN])
+    target = matrix[target_column]
+    features = matrix.drop(columns=[target_column])
     return features, target
 
 
@@ -766,6 +854,7 @@ def _write_screen_html_report(
         regime_metrics=tables.regime_metrics,
     )
     meta = ReportMeta(
+        target_column=target_column_for_horizon(inference.horizon_days),
         n_splits=config.n_splits,
         embargo_size=config.embargo_size,
         inference=InferenceReportMeta(

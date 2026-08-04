@@ -62,8 +62,26 @@ non_overlapping_subsample
     Thin a time-ordered series to non-overlapping horizon spacing.
 block_bootstrap_nonoverlap_sensitivity
     Block-bootstrap mean(d) on the non-overlapping subsample.
+LOCKED_SCREEN_HORIZONS
+    Locked multi-horizon study set ``(1, 5, 21)``.
+default_embargo_for_horizon
+    Embargo size locked to ``horizon_days``.
+default_bootstrap_block_length
+    Locked default bootstrap block length for a horizon.
+allowed_bootstrap_block_range
+    Inclusive allowed block-length interval for a horizon.
+validate_bootstrap_block_length
+    Horizon-aware block-length validator.
+BootstrapBlockBounds
+    Inclusive allowed interval for ``BootstrapInferenceOptions.block_length``.
 """
-
+from vip.evaluation.horizon_defaults import (
+    LOCKED_SCREEN_HORIZONS,
+    allowed_bootstrap_block_range,
+    default_bootstrap_block_length,
+    default_embargo_for_horizon,
+    validate_bootstrap_block_length,
+)
 from vip.evaluation.comparison import (
     InferenceSummaryOptions,
     summarize_nonoverlap_sensitivity,
@@ -76,6 +94,7 @@ from vip.evaluation.importance import (
     permutation_importance_folds,
 )
 from vip.evaluation.inference import (
+    BootstrapBlockBounds,
     BootstrapInferenceOptions,
     BootstrapResult,
     DMResult,
@@ -129,4 +148,10 @@ __all__ = [
     "InferenceSummaryOptions",
     "summarize_with_inference",
     "summarize_nonoverlap_sensitivity",
+    "LOCKED_SCREEN_HORIZONS",
+    "BootstrapBlockBounds",
+    "allowed_bootstrap_block_range",
+    "default_bootstrap_block_length",
+    "default_embargo_for_horizon",
+    "validate_bootstrap_block_length",
 ]

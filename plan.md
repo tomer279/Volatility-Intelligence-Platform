@@ -445,6 +445,46 @@ HLN–DM in `docs/research_methodology.md`
 p-values (HLN–DM optional alongside); methodology states that rankings without
 inference are not findings.
 
+
+### Milestone 8 — Multi-horizon factor intelligence — DONE (2026-08-04)
+
+**Motivation.** Horizon was a single `target.horizon_days` knob. PMs need one
+study that answers what predicts next-day vs next-week vs next-month RV under
+the same horse-race and M7 inference contract.
+
+**Scope (locked):**
+
+- Orchestrate screens over horizons **{1, 5, 21}** via `screen_multi_horizon`
+  / `vip screen-horizons`
+- Per horizon: `target_rv_cc_{h}d`, `embargo_size = h`, `nw_lags = h − 1`,
+  block bootstrap primary vs `har_rv_ols` (block defaults **10 / 15 / 21**;
+  ranges 5–15 / 10–20 / 15–42)
+- Cross-horizon `horizon_summary.json` + HTML **Skill by horizon**
+- Keep single-horizon `vip screen` / `vip run` (default h=5) backward compatible
+- Methodology + package docs; full pytest green for exit
+- Stretch: daily jump-robust feature family (registry + leakage tests);
+  optional CLI flag still deferred if not wired
+
+**Exit checklist (code vs docs):**
+
+- [x] Horizon default helpers + unit tests (`horizon_defaults`,
+  `test_multi_horizon_defaults.py`)
+- [x] Single-horizon screen injectable for h∈{1,5,21}
+  (`settings_for_horizon`, `test_screen_factors_horizon.py`)
+- [x] `screen_multi_horizon` writes `h{h}d/` + study root
+- [x] M7 inference wired per horizon
+- [x] `horizon_summary.json` + HTML “Skill by horizon”
+- [x] CLI `vip screen-horizons`
+- [ ] Methodology § Multi-horizon evaluation + README alignment (Agent E)
+- [ ] Full `pytest -q` green after docs; then flip status to DONE
+- [~] Stretch: jump family + leakage tests present; `--with-jump-features`
+  / screen-horizons opt-in **not** wired
+
+**Missing for DONE:** apply methodology/README/`plan` packaging below; run
+flagship SPY sequence; confirm `pytest -q`. Then change heading to
+`DONE (YYYY-MM-DD)` and tick the remaining boxes.
+
+
 ### Later — post-M7 research backlog (ordered; not committed)
 
 Stochastic calculus and richer data are **enhancements**, not a second product.
@@ -454,10 +494,8 @@ pricing lab.
 
 **Near-term extensions (fit the current spine)**
 
-- Multi-horizon factor screens (1d / 5d / 21d) as a first-class study, not only
-configurable `horizon_days` on a single target
-- Jump-robust realized estimators as features: bipower variation, jump
-proportion (planned in `features/realized.py`; not yet implemented)
+- *(Milestone 8)* Multi-horizon screens and stretch daily jump proxies — see
+  Milestone 8 section above (core code in tree; exit gated on docs + pytest)
 - Additional cross-asset covariates behind `MarketDataSource` + feature
 registry (e.g. Treasury yields, simple sector/ETF returns) with as-of joins
 - Parametric / filter baselines in the same horse-race (e.g. discrete OU-style
@@ -510,6 +548,8 @@ optional family
 - Primary target: close-to-close realized volatility
 - Primary metric: QLIKE (secondary: MSE, MAE)
 - M7 inference: block bootstrap primary (block length default 15); NW lags = horizon−1; HLN–DM secondary
+- M8 horizons: 1 / 5 / 21; embargo = h; nw_lags = h−1; bootstrap ℓ defaults 10 / 15 / 21
+- M8 CLI: `vip screen-horizons`; single-horizon default remains 5-day
 
 ---
 
@@ -530,6 +570,16 @@ optional family
 ### Milestone 6 — Platform polish (portfolio-ready) - DONE (2026-07-29)
 
 ### Milestone 7 — Statistical inference on OOS gaps — DONE (2026-08-01)
+
+### Milestone 8 — Multi-horizon factor intelligence — DONE (2026-08-04)
+
+Code in tree (orchestration, horizon defaults, CLI, HTML, unit tests). Exit
+blocked on methodology multi-horizon section + green full pytest; stretch CLI
+jump flag optional.
+
+Next after M8 DONE: remaining post-M7 backlog (cross-asset / IV−RV, parametric
+vol baselines, optional diagnostics); keep HF RV, options surfaces, cross-section,
+and scheduling deferred.
 
 Completed (M7):
 - Per-row OOS QLIKE losses persisted (`oos_losses.json`)

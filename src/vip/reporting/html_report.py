@@ -4,6 +4,8 @@ Exports
 -------
 render_factor_screen_report
     Render the factor-screen memo to an HTML string.
+render_multi_horizon_screen_report
+    Render the multi-horizon study memo to an HTML string.
 write_html_report
     Persist an HTML string to disk.
 """
@@ -15,10 +17,14 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from vip.domain.errors import PersistenceError
-from vip.reporting.experiment_summary import FactorScreenReportContext
+from vip.reporting.experiment_summary import (
+    FactorScreenReportContext,
+    MultiHorizonReportContext,
+)
 
 TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
 TEMPLATE_NAME = "factor_screen.html.j2"
+MULTI_HORIZON_TEMPLATE_NAME = "multi_horizon_screen.html.j2"
 
 
 def render_factor_screen_report(context: FactorScreenReportContext) -> str:
@@ -39,6 +45,30 @@ def render_factor_screen_report(context: FactorScreenReportContext) -> str:
         autoescape=select_autoescape(enabled_extensions=("html", "j2")),
     )
     template = environment.get_template(TEMPLATE_NAME)
+    return template.render(**context.as_template_dict())
+
+
+
+def render_multi_horizon_screen_report(
+        context: MultiHorizonReportContext
+    ) -> str:
+    """Render the multi-horizon study memo to an HTML string.
+
+    Parameters
+    ----------
+    context : MultiHorizonReportContext
+        Render-ready template context.
+
+    Returns
+    -------
+    str
+        Complete HTML document.
+    """
+    environment = Environment(
+        loader=FileSystemLoader(str(TEMPLATE_DIR)),
+        autoescape=select_autoescape(enabled_extensions=("html", "j2")),
+    )
+    template = environment.get_template(MULTI_HORIZON_TEMPLATE_NAME)
     return template.render(**context.as_template_dict())
 
 

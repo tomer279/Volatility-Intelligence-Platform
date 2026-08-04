@@ -46,3 +46,13 @@ def test_evaluate_help_exits_zero() -> None:
     assert "--symbol" in result.stdout
     assert "--n-splits" in result.stdout
     assert "--embargo" in result.stdout
+
+
+def test_screen_horizons_help_exits_zero() -> None:
+    """Multi-horizon screen help should be available."""
+    result = runner.invoke(app, ["screen-horizons", "--help"])
+    assert result.exit_code == 0
+    assert "--symbol" in result.stdout
+    assert "--horizons" in result.stdout
+    assert "--with-vix" in result.stdout
+    assert "--skip-features" in result.stdout

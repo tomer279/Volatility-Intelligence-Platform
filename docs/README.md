@@ -18,7 +18,7 @@ This folder collects project-level docs for the Volatility Intelligence Platform
 - [`config`](../src/vip/config/README.md) — YAML loading and validated settings
 - [`persistence`](../src/vip/persistence/README.md) — Parquet market data, feature matrices, and artifacts
 - [`orchestration`](../src/vip/orchestration/README.md) — logging and (later) wiring
-- [`cli`](../src/vip/cli/README.md) — terminal commands (`info`, `ingest`, `features`, `evaluate`, `screen`, `screen-batch`, `run`)
+- [`cli`](../src/vip/cli/README.md) — terminal commands (`info`, `ingest`, `features`, `evaluate`, `screen`, `screen-batch`, `screen-horizons`, `run`)
 - [`ingestion`](../src/vip/ingestion/README.md) — Yahoo Finance adapter and OHLCV validation
 - [`features`](../src/vip/features/README.md) — targets, feature families, registry, and pipeline
 - [`modeling`](../src/vip/modeling/README.md) — baselines and regularized linear models

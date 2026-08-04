@@ -153,7 +153,7 @@ def test_block_ci_wider_than_iid_under_dependence() -> None:
 
 
 def test_invalid_block_length_raises() -> None:
-    """Block length outside 10–20 should raise."""
+    """Block length outside default (h=5) bounds 10–20 should raise."""
     options = BootstrapInferenceOptions(block_length=5)
     with pytest.raises(DataValidationError, match="block_length must be in"):
         options.validate()

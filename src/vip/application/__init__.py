@@ -24,12 +24,26 @@ screen_factors
     Load features, race models, rank factors, and persist artifacts.
 ScreenInferenceOptions
     Bootstrap / HLN / non-overlap sensitivity settings for screening.
+target_column_for_horizon
+    Build ``target_rv_cc_{h}d`` for a horizon.
+settings_for_horizon
+    Horizon-aware ``ScreenConfig`` + ``ScreenInferenceOptions`` (M8 defaults).
+MultiHorizonStores
+    Market, feature, and artifact-root dependencies for a multi-horizon study.
+MultiHorizonInferenceOverrides
+    Optional bootstrap / HLN overrides on horizon defaults.
+MultiHorizonScreenConfig
+    Symbol, horizons, VIX / skip flags, and screen tuning.
+MultiHorizonScreenResult
+    Study id, cross-horizon summary, and per-horizon experiment ids.
+screen_multi_horizon
+    Orchestrate per-horizon screens and write study-level artifacts.
 """
 
 from vip.application.build_feature_matrix import (
     BuildFeatureMatrixResult,
     build_and_persist_feature_matrix,
-    FeatureMatrixExtras
+    FeatureMatrixExtras,
 )
 from vip.application.ingest_market_data import (
     IngestMarketDataResult,
@@ -44,6 +58,15 @@ from vip.application.screen_factors import (
     ScreenConfig,
     ScreenInferenceOptions,
     screen_factors,
+    settings_for_horizon,
+    target_column_for_horizon,
+)
+from vip.application.screen_multi_horizon import (
+    MultiHorizonInferenceOverrides,
+    MultiHorizonScreenConfig,
+    MultiHorizonScreenResult,
+    MultiHorizonStores,
+    screen_multi_horizon,
 )
 
 __all__ = [
@@ -58,4 +81,11 @@ __all__ = [
     "screen_factors",
     "FeatureMatrixExtras",
     "ScreenInferenceOptions",
+    "settings_for_horizon",
+    "target_column_for_horizon",
+    "MultiHorizonInferenceOverrides",
+    "MultiHorizonScreenConfig",
+    "MultiHorizonScreenResult",
+    "MultiHorizonStores",
+    "screen_multi_horizon",
 ]

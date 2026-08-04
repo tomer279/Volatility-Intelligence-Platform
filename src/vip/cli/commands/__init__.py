@@ -12,6 +12,8 @@ screen_command
     Register the ``vip screen`` command.
 screen_batch_command
     Register the ``vip screen-batch`` command.
+screen_multi_horizon_command
+    Register the ``vip screen-horizons`` command.
 run_command
     Register the ``vip run`` command.
 """
@@ -22,6 +24,7 @@ from vip.cli.commands.ingest import ingest_command
 from vip.cli.commands.run import run_command
 from vip.cli.commands.screen import screen_command
 from vip.cli.commands.screen_batch import screen_batch_command
+from vip.cli.commands.screen_multi_horizon import screen_multi_horizon_command
 
 
 __all__ = [
@@ -31,4 +34,5 @@ __all__ = [
     "run_command",
     "screen_command",
     "screen_batch_command",
+    "screen_multi_horizon_command",
 ]

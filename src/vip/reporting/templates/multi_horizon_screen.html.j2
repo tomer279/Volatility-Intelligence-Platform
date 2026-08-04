@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>VIP Multi-Horizon Screen — {{ symbol }}</title>
+  <style>
+    body { font-family: Georgia, "Times New Roman", serif; margin: 2rem auto; max-width: 960px; color: #222; line-height: 1.45; }
+    h1, h2 { font-family: Arial, Helvetica, sans-serif; }
+    table { border-collapse: collapse; width: 100%; margin: 1rem 0 1.5rem; font-size: 0.92rem; }
+    th, td { border: 1px solid #ccc; padding: 0.4rem 0.55rem; text-align: left; }
+    th { background: #f3f3f3; }
+    .meta { color: #555; margin-bottom: 1.5rem; }
+    .caveat { margin: 0.4rem 0; }
+  </style>
+</head>
+<body>
+  <h1>Volatility Intelligence Platform — Multi-Horizon Factor Screen</h1>
+  <p class="meta">
+    Symbol: <strong>{{ symbol }}</strong><br />
+    Study: {{ study_id }}<br />
+    Generated: {{ generated_on }}<br />
+    Horizons: {{ horizons_label }}
+  </p>
+
+  <h2>Research question</h2>
+  <p>
+    Which models predict next-day, next-week, and next-month close-to-close
+    realized volatility under walk-forward evaluation with primary metric
+    <code>qlike</code> (lower is better)?
+  </p>
+
+  <h2>Locked methodology (per horizon)</h2>
+  <ul>
+    <li>Inference baseline: <code>{{ baseline_model }}</code></li>
+    <li>Significance level α={{ alpha }}</li>
+    <li>
+      “Significantly better” only when the primary block bootstrap rejects at α
+      <em>and</em> mean ΔQLIKE &lt; 0; otherwise use descriptive QLIKE wording.
+    </li>
+  </ul>
+  <table>
+    <thead>
+      <tr>
+        <th>horizon_days</th>
+        <th>target</th>
+        <th>embargo</th>
+        <th>nw_lags</th>
+        <th>bootstrap_block_length</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in per_horizon_rows %}
+      <tr>
+        <td>{{ row.horizon_days }}</td>
+        <td><code>{{ row.target_column }}</code></td>
+        <td>{{ row.embargo_size }}</td>
+        <td>{{ row.nw_lags }}</td>
+        <td>{{ row.bootstrap_block_length }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>Skill by horizon</h2>
+  <p class="meta">
+    Cross-horizon mean OOS QLIKE and bootstrap inference vs HAR.
+    Rankings alone are descriptive, not findings.
+  </p>
+  <table>
+    <thead>
+      <tr>
+        <th>horizon_days</th>
+        <th>model</th>
+        <th>qlike</th>
+        <th>mse</th>
+        <th>mae</th>
+        <th>mean ΔQLIKE</th>
+        <th>bootstrap CI</th>
+        <th>bootstrap p</th>
+        <th>significant_vs_baseline</th>
+        <th>vs HAR</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in horizon_rows %}
+      <tr>
+        <td>{{ row.horizon_days }}</td>
+        <td>{{ row.model }}</td>
+        <td>{{ "%.6f"|format(row.qlike) }}</td>
+        <td>{{ "%.6f"|format(row.mse) }}</td>
+        <td>{{ "%.6f"|format(row.mae) }}</td>
+        <td>
+          {% if row.mean_delta_qlike is not none %}
+            {{ "%.6f"|format(row.mean_delta_qlike) }}
+          {% else %}—{% endif %}
+        </td>
+        <td>
+          {% if row.bootstrap_ci_low is not none and row.bootstrap_ci_high is not none %}
+            [{{ "%.6f"|format(row.bootstrap_ci_low) }},
+             {{ "%.6f"|format(row.bootstrap_ci_high) }}]
+          {% else %}—{% endif %}
+        </td>
+        <td>
+          {% if row.bootstrap_pvalue is not none %}
+            {{ "%.4f"|format(row.bootstrap_pvalue) }}
+          {% else %}—{% endif %}
+        </td>
+        <td>
+          {% if row.significant_vs_baseline is not none %}
+            {{ row.significant_vs_baseline }}
+          {% else %}—{% endif %}
+        </td>
+        <td>{{ row.comparison_note }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>Caveats</h2>
+  <ul>
+    {% for caveat in caveats %}
+    <li class="caveat">{{ caveat }}</li>
+    {% endfor %}
+  </ul>
+</body>
+</html>

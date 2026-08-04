@@ -14,6 +14,7 @@ quant research tool.
 - Realized-volatility targets and feature families (HAR, returns, range, volume, optional VIX)
 - Walk-forward baseline evaluation (QLIKE primary; MSE / MAE secondary)
 - Factor screening with importance rankings and HTML reports
+- Multi-horizon factor screens across 1d / 5d / 21d (`vip screen-horizons`)
 - One-command study pipeline (`vip run`)
 - Optional FastAPI server for browsing experiment artifacts
 
@@ -113,7 +114,25 @@ vip screen --symbol SPY
 `--with-vix` on `features` requires VIX OHLCV already in `data/raw/`
 (`vip ingest --symbol VIX`). `vip run --with-vix` handles that automatically.
 
-### 5. Re-run without re-downloading
+### 5. Multi-horizon screen (1 / 5 / 21)
+
+Requires OHLCV (and VIX if requested) already ingested. Rebuilds a feature
+matrix per horizon unless `--skip-features`:
+
+```bash
+vip ingest --symbol SPY
+vip ingest --symbol VIX
+vip screen-horizons --symbol SPY --with-vix
+```
+
+Open:
+
+- `data/artifacts/multi-horizon-screen-spy-<date>/horizon_summary.json`
+- `data/artifacts/multi-horizon-screen-spy-<date>/report.html`
+
+Single-horizon screening remains `vip screen` (default horizon 5).
+
+### 6. Re-run without re-downloading
 
 Reuse cached market data and feature matrices:
 
@@ -122,7 +141,7 @@ vip run --symbol SPY --with-vix --skip-ingest --skip-features
 vip screen-batch --symbols SPY,QQQ --skip-ingest --skip-features
 ```
 
-### 6. Optional: serve artifacts over HTTP
+### 7. Optional: serve artifacts over HTTP
 
 ```bash
 pip install -e ".[api]"

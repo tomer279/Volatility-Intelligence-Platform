@@ -14,15 +14,33 @@ render_factor_screen_report
     Render the factor-screen memo to an HTML string.
 write_html_report
     Persist an HTML string to disk.
+MultiHorizonReportMeta
+    Study-level methodology for multi-horizon memos.
+MultiHorizonReportPayload
+    Cross-horizon summary table for the study memo.
+MultiHorizonReportContext
+    Render-ready context for the multi-horizon report.
+build_multi_horizon_context
+    Assemble a multi-horizon report context.
+render_multi_horizon_screen_report
+    Render the multi-horizon study memo to an HTML string.
 """
 
 from vip.reporting.experiment_summary import (
     FactorScreenReportContext,
+    MultiHorizonReportContext,
+    MultiHorizonReportMeta,
+    MultiHorizonReportPayload,
     ReportMeta,
     ScreenReportPayload,
     build_factor_screen_context,
+    build_multi_horizon_context,
 )
-from vip.reporting.html_report import render_factor_screen_report, write_html_report
+from vip.reporting.html_report import (
+    render_factor_screen_report,
+    render_multi_horizon_screen_report,
+    write_html_report,
+)
 
 __all__ = [
     "FactorScreenReportContext",
@@ -31,4 +49,9 @@ __all__ = [
     "build_factor_screen_context",
     "render_factor_screen_report",
     "write_html_report",
+    "MultiHorizonReportContext",
+    "MultiHorizonReportMeta",
+    "MultiHorizonReportPayload",
+    "build_multi_horizon_context",
+    "render_multi_horizon_screen_report",
 ]

@@ -20,6 +20,7 @@ from vip.application.screen_multi_horizon import (
     screen_multi_horizon,
 )
 from vip.config import load_config, resolve_project_root
+from vip.cli.feature_extras import parse_feature_extras
 from vip.domain.value_objects import Symbol
 from vip.evaluation.horizon_defaults import LOCKED_SCREEN_HORIZONS
 from vip.persistence.feature_matrix_store import ParquetFeatureMatrixStore
@@ -57,10 +58,10 @@ def screen_multi_horizon_command(app: typer.Typer) -> None:
             "--horizons",
             help="Comma-separated horizons (locked set: 1,5,21).",
         ),
-        with_vix: bool = typer.Option(
-            False,
-            "--with-vix",
-            help="Join VIX features when (re)building per-horizon matrices.",
+        with_features: str = typer.Option(
+            "",
+            "--with",
+            help="Comma-separated extras: vix, jump (e.g. vix,jump).",
         ),
         skip_features: bool = typer.Option(
             False,
@@ -75,12 +76,14 @@ def screen_multi_horizon_command(app: typer.Typer) -> None:
             Symbol(symbol) if symbol is not None else Symbol(config.symbol)
         )
         stores = _build_stores(config, project_root)
+        extras = parse_feature_extras(with_features)
         result = screen_multi_horizon(
             stores=stores,
             config=MultiHorizonScreenConfig(
                 symbol=effective_symbol,
                 horizons=_parse_horizons(horizons),
-                with_vix=with_vix,
+                with_vix=extras.include_vix,
+                with_jump_features=extras.include_jump,
                 skip_features=skip_features,
                 screen_config=ScreenConfig(),
             ),

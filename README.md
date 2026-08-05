@@ -73,13 +73,13 @@ Ingest OHLCV, build feature matrices (including VIX when requested), run factor
 screens, and write HTML reports:
 
 ```bash
-vip run --symbols SPY,QQQ --with-vix
+vip run --symbols SPY,QQQ --with vix
 ```
 
 Single-symbol shorthand:
 
 ```bash
-vip run --symbol SPY --with-vix
+vip run --symbol SPY --with vix
 ```
 
 The first run needs network access and may take several minutes. When finished,
@@ -106,13 +106,14 @@ Same workflow broken into explicit commands:
 ```bash
 vip ingest --symbol SPY --start 2018-01-01 --end 2024-12-31
 vip ingest --symbol VIX --start 2018-01-01 --end 2024-12-31
-vip features --symbol SPY --with-vix
+vip features --symbol SPY --with vix
 vip evaluate --symbol SPY
 vip screen --symbol SPY
 ```
 
-`--with-vix` on `features` requires VIX OHLCV already in `data/raw/`
-(`vip ingest --symbol VIX`). `vip run --with-vix` handles that automatically.
+`--with vix` on `features` requires VIX OHLCV already in `data/raw/`
+(`vip ingest --symbol VIX`). `vip run --with vix` handles that automatically.
+Allowed `--with` tokens: `vix`, `jump` (comma-separated, e.g. `vix,jump`).
 
 ### 5. Multi-horizon screen (1 / 5 / 21)
 
@@ -122,7 +123,7 @@ matrix per horizon unless `--skip-features`:
 ```bash
 vip ingest --symbol SPY
 vip ingest --symbol VIX
-vip screen-horizons --symbol SPY --with-vix
+vip screen-horizons --symbol SPY --with vix
 ```
 
 Open:
@@ -137,7 +138,7 @@ Single-horizon screening remains `vip screen` (default horizon 5).
 Reuse cached market data and feature matrices:
 
 ```bash
-vip run --symbol SPY --with-vix --skip-ingest --skip-features
+vip run --symbol SPY --with vix --skip-ingest --skip-features
 vip screen-batch --symbols SPY,QQQ --skip-ingest --skip-features
 ```
 

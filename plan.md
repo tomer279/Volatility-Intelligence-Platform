@@ -463,7 +463,7 @@ the same horse-race and M7 inference contract.
 - Keep single-horizon `vip screen` / `vip run` (default h=5) backward compatible
 - Methodology + package docs; full pytest green for exit
 - Stretch: daily jump-robust feature family (registry + leakage tests);
-  optional CLI flag still deferred if not wired
+  CLI opt-in via ``--with jump`` / ``--with vix,jump``
 
 **Exit checklist (code vs docs):**
 
@@ -477,8 +477,8 @@ the same horse-race and M7 inference contract.
 - [x] CLI `vip screen-horizons`
 - [ ] Methodology § Multi-horizon evaluation + README alignment (Agent E)
 - [ ] Full `pytest -q` green after docs; then flip status to DONE
-- [~] Stretch: jump family + leakage tests present; `--with-jump-features`
-  / screen-horizons opt-in **not** wired
+- [x] Stretch: jump family + leakage tests + CLI ``--with jump``
+  (``features`` / ``run`` / ``screen-horizons``)
 
 **Missing for DONE:** apply methodology/README/`plan` packaging below; run
 flagship SPY sequence; confirm `pytest -q`. Then change heading to
@@ -581,16 +581,6 @@ Next after M8 DONE: remaining post-M7 backlog (cross-asset / IV−RV, parametric
 vol baselines, optional diagnostics); keep HF RV, options surfaces, cross-section,
 and scheduling deferred.
 
-Completed (M7):
-- Per-row OOS QLIKE losses persisted (`oos_losses.json`)
-- Block bootstrap primary (default ℓ=15) vs `har_rv_ols` with CI / p-value
-- Optional HLN–DM secondary (NW lags = horizon − 1); wording gated on bootstrap
-- HTML / CLI / methodology document overlap, embargo ≠ inference, bootstrap primary
-- Stretch: non-overlapping horizon subsample footnote (`inference_sensitivity.json`)
-
-Next: Follow the ordered post-M7 backlog (multi-horizon screens, jump-robust RV features, cross-asset /
-IV−RV studies, parametric vol baselines); keep options Greeks, HF RV,
-cross-section, and scheduling deferred.
 
 ## Suggested Flagship Demo Narrative
 

@@ -13,9 +13,15 @@ from pathlib import Path
 
 import typer
 
-from vip.application.run_study import RunStudyConfig, RunStudyStores, run_study
+from vip.application.run_study import (
+    RunStudyConfig,
+    RunStudyStores,
+    run_study,
+    FeatureMatrixExtras
+)
 from vip.application.screen_batch import BatchScreenResult
 from vip.config import load_config, resolve_project_root
+from vip.cli.feature_extras import parse_feature_extras
 from vip.domain.value_objects import DateRange, Symbol
 from vip.ingestion.yfinance_source import YFinanceMarketDataSource
 from vip.persistence.artifact_store import FilesystemArtifactStore
@@ -44,10 +50,10 @@ def run_command(app: typer.Typer) -> None:
                 "--symbol",
                 help="Single-symbol shorthand (mutually exclusive with --symbols).",
             ),
-            with_vix: bool = typer.Option(
-                False,
-                "--with-vix",
-                help="Include VIX cross-asset features.",
+            with_features: str = typer.Option(
+                "",
+                "--with",
+                help="Comma-separated extras: vix, jump (e.g. vix,jump).",
             ),
             skip_ingest: bool = typer.Option(
                 False,
@@ -65,40 +71,26 @@ def run_command(app: typer.Typer) -> None:
         config = load_config()
         project_root = resolve_project_root()
         stores = _build_stores(config, project_root)
+        extras = parse_feature_extras(with_features)
         study_cfg = _build_study_config(
-            parsed_symbols, config, with_vix, skip_ingest, skip_features,
+            parsed_symbols,
+            config,
+            extras,
+            skip_ingest,
+            skip_features,
         )
         result = run_study(stores, study_cfg)
         _print_results(result, stores.artifact_store)
 
 
 def _build_study_config(
-    symbols: list[Symbol],
-    config,
-    with_vix: bool,
-    skip_ingest: bool,
-    skip_features: bool,
+        symbols: list[Symbol],
+        config,
+        extras: FeatureMatrixExtras,
+        skip_ingest: bool,
+        skip_features: bool,
 ) -> RunStudyConfig:
-    """Build a ``RunStudyConfig`` from CLI flags and app config.
-
-    Parameters
-    ----------
-    symbols : list[Symbol]
-        Parsed instrument symbols.
-    config : VipConfig
-        Loaded application configuration.
-    with_vix : bool
-        Include VIX cross-asset features.
-    skip_ingest : bool
-        Skip the ingestion step.
-    skip_features : bool
-        Skip the feature-building step.
-
-    Returns
-    -------
-    RunStudyConfig
-        Fully populated study configuration.
-    """
+    """Build a ``RunStudyConfig`` from CLI flags and app config."""
     return RunStudyConfig(
         symbols=symbols,
         date_range=DateRange(
@@ -106,25 +98,17 @@ def _build_study_config(
             end=config.date_range.end or date.today(),
         ),
         horizon_days=config.target.horizon_days,
-        with_vix=with_vix,
+        extras=extras,
         skip_ingest=skip_ingest,
         skip_features=skip_features,
     )
 
 
 def _print_results(
-    result: BatchScreenResult,
-    artifact_store: FilesystemArtifactStore,
+        result: BatchScreenResult,
+        artifact_store: FilesystemArtifactStore,
 ) -> None:
-    """Print study summary table and report paths.
-
-    Parameters
-    ----------
-    result : BatchScreenResult
-        Completed study outputs.
-    artifact_store : FilesystemArtifactStore
-        Store used to resolve report paths.
-    """
+    """Print study summary table and report paths."""
     typer.echo("Study results")
     typer.echo(result.summary.to_string(index=False))
     typer.echo("")
@@ -134,28 +118,10 @@ def _print_results(
 
 
 def _resolve_symbols(
-    symbols: str | None,
-    symbol: str | None,
+        symbols: str | None,
+        symbol: str | None,
 ) -> list[Symbol]:
-    """Parse ``--symbols`` / ``--symbol`` with mutual exclusivity.
-
-    Parameters
-    ----------
-    symbols : str or None
-        Comma-separated symbol string.
-    symbol : str or None
-        Single-symbol shorthand.
-
-    Returns
-    -------
-    list[Symbol]
-        Parsed symbol list.
-
-    Raises
-    ------
-    typer.BadParameter
-        If both or neither are provided.
-    """
+    """Parse ``--symbols`` / ``--symbol`` with mutual exclusivity."""
     if symbols is not None and symbol is not None:
         raise typer.BadParameter(
             "Use --symbols or --symbol, not both."
@@ -170,20 +136,7 @@ def _resolve_symbols(
 
 
 def _build_stores(config, project_root: Path) -> RunStudyStores:
-    """Construct persistence stores from configuration.
-
-    Parameters
-    ----------
-    config : VipConfig
-        Loaded application configuration.
-    project_root : pathlib.Path
-        Project root directory.
-
-    Returns
-    -------
-    RunStudyStores
-        Bundled stores for the study pipeline.
-    """
+    """Construct persistence stores from configuration."""
     return RunStudyStores(
         source=YFinanceMarketDataSource(),
         market_store=ParquetMarketDataStore(

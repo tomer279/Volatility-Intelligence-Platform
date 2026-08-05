@@ -27,11 +27,11 @@ CLI commands should call these functions rather than embedding business logic.
 - `target_column_for_horizon(horizon_days)` - Returns ``target_rv_cc_{h}d``.
 - `settings_for_horizon(horizon_days)` - M8 defaults: ``embargo_size = h``, horizon-aware bootstrap block length/bounds, ``horizon_days`` for NW.
 - `ScreenArtifactContext` - Persist-time screen + inference settings for artifacts / `screen_meta`.
-- `FeatureMatrixExtras` - Optional settings (`feature_names`, `include_vix`) for feature builds.
+- `FeatureMatrixExtras` - Optional settings (`feature_names`, `include_vix`, `include_jump`, `vix_symbol`) for feature builds.
 - `run_screen_batch(source, market_store, feature_store, artifact_store, config)` - Loop symbols: ingest/features/screen.
 - `BatchScreenConfig` / `BatchScreenResult` - Batch settings and summary table.
 - `run_study(stores, config)` - Full study pipeline; returns `BatchScreenResult`.
-- `RunStudyConfig` - Symbols, date range, horizon, VIX flag, skip flags.
+- `RunStudyConfig` - Symbols, date range, horizon, `extras` (`FeatureMatrixExtras`), skip flags.
 - `RunStudyStores` - Bundled source + market/feature/artifact stores.
 - `screen_multi_horizon(stores, config)` - Run per-horizon `screen_factors` and write study artifacts.
 - `MultiHorizonStores` / `MultiHorizonScreenConfig` / `MultiHorizonInferenceOverrides` /
@@ -79,7 +79,7 @@ Batch screen:
 
 Full study (`vip run`):
 1. CLI builds `RunStudyStores` (yfinance source + Parquet/artifact stores).
-2. CLI builds `RunStudyConfig` from flags (`--symbol` / `--symbols`, `--with-vix`, skip flags).
+2. CLI builds `RunStudyConfig` from flags (`--symbol` / `--symbols`, `--with`, skip flags).
 3. CLI calls `run_study(stores, config)`.
 4. Returns `BatchScreenResult` (summary table + per-symbol experiment IDs).
 
@@ -93,10 +93,10 @@ Multi-horizon screen (`vip screen-horizons`):
 4. Per-horizon artifacts are promoted under `h{h}d/` (metrics, OOS losses,
    inference, importance, optional per-horizon report pieces). Study-level
    `report.html` includes the **Skill by horizon** section.
-5. Jump-robust features are **not** toggled by `MultiHorizonScreenConfig`
-   today; builds use `FeatureMatrixExtras(include_vix=...)` only. To include
-   jump columns, build matrices offline with
-   `create_default_registry(include_jump=True)` (stretch; see methodology §2.6 / §11.5).
+5. VIX / jump extras: CLI `--with vix,jump` → `parse_feature_extras` →
+   `MultiHorizonScreenConfig(with_vix=..., with_jump_features=...)` →
+   `FeatureMatrixExtras(include_vix=..., include_jump=...)`.
+   No effect under `--skip-features` unless those columns already exist in the matrix.
 
 ## Notes
 - Keep use-cases framework-agnostic and easy to unit-test with fakes.

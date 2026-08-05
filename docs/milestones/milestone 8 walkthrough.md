@@ -109,7 +109,7 @@ documented — not true high-frequency bipower)
 | `bootstrap_n_resamples`                     | ≥ 999 (1999 for reports; 999 OK in tests)                                         |
 | `bootstrap_random_seed`                     | `0`                                                                               |
 | Significance wording                        | “Significantly better” **only** if bootstrap rejects at α **and** mean ΔQLIKE < 0 |
-| Feature families (core)                     | returns, har, range, volume (+ VIX when `--with-vix`)                             |
+| Feature families (core)                     | returns, har, range, volume (+ VIX/jump when `--with vix` / `jump`)               |
 | Artifact root                               | `data/artifacts/multi-horizon-screen-{symbol}-{date}/`                            |
 
 
@@ -334,7 +334,7 @@ Implement `screen_multi_horizon`:
 
 Add `vip screen-horizons` (or `vip screen --horizons 1,5,21`):
 
-- Flags mirror screen where useful (`--symbol`, `--with-vix`, `--skip-features`).
+- Flags: `--symbol`, `--horizons`, `--with` (`vix`,`jump`), `--skip-features`.
 - Print a compact cross-horizon QLIKE / ΔQLIKE / p table.
 - Echo artifact root.
 
@@ -360,7 +360,7 @@ defaults; relationship to M7). Update `evaluation` / `application` READMEs.
 ### Step 7 — Stretch: jump-robust features
 
 Implement daily bipower / jump proportion helpers + registry family + leakage
-tests; optional flag `--with-jump-features` on the multi-horizon CLI.  
+tests; CLI opt-in via `--with jump` on features / run / screen-horizons.
 **Checkpoint:** tests green; methodology notes daily-proxy limitation.
 
 ### Step 8 — Flagship run + plan status
@@ -379,10 +379,10 @@ $env:PYTHONPATH = "src"
 py -m pip install -e ".[dev]"
 py -m pytest tests/unit/test_multi_horizon_defaults.py -q
 py -m pytest tests/unit/test_screen_multi_horizon.py -q
-vip features --symbol SPY --horizon 1 --with-vix
-vip features --symbol SPY --horizon 5 --with-vix
-vip features --symbol SPY --horizon 21 --with-vix
-vip screen-horizons --symbol SPY --with-vix
+vip features --symbol SPY --horizon 1 --with vix
+vip features --symbol SPY --horizon 5 --with vix
+vip features --symbol SPY --horizon 21 --with vix
+vip screen-horizons --symbol SPY --with vix
 # inspect data/artifacts/multi-horizon-screen-spy-*/horizon_summary.json and report.html
 py -m pytest -q
 ```
@@ -391,7 +391,7 @@ Optional stretch:
 
 ```powershell
 py -m pytest tests/unit/test_jump_features.py -q
-vip screen-horizons --symbol SPY --with-vix --with-jump-features
+vip screen-horizons --symbol SPY --with vix,jump
 ```
 
 ---

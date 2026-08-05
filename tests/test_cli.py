@@ -37,6 +37,7 @@ def test_features_help_exits_zero() -> None:
     assert result.exit_code == 0
     assert "--symbol" in result.stdout
     assert "--horizon" in result.stdout
+    assert "--with" in result.stdout
 
 
 def test_evaluate_help_exits_zero() -> None:
@@ -54,5 +55,5 @@ def test_screen_horizons_help_exits_zero() -> None:
     assert result.exit_code == 0
     assert "--symbol" in result.stdout
     assert "--horizons" in result.stdout
-    assert "--with-vix" in result.stdout
+    assert "--with" in result.stdout
     assert "--skip-features" in result.stdout

@@ -54,8 +54,8 @@ class RunStudyConfig:
         Ingest window (ignored when ``skip_ingest`` is True).
     horizon_days : int
         Forward target horizon in trading days.
-    with_vix : bool
-        When True, ingest VIX and include cross-asset features.
+    extras : FeatureMatrixExtras
+        Feature-build options (VIX join, jump family, optional family subset).
     skip_ingest : bool
         When True, skip ingestion and require cached market data.
     skip_features : bool
@@ -74,19 +74,13 @@ class RunStudyConfig:
     symbols: list[Symbol]
     date_range: DateRange
     horizon_days: int = DEFAULT_HORIZON_DAYS
-    with_vix: bool = False
+    extras: FeatureMatrixExtras = field(default_factory=FeatureMatrixExtras)
     skip_ingest: bool = False
     skip_features: bool = False
     screen_config: ScreenConfig = field(default_factory=ScreenConfig)
 
     def validate(self) -> None:
-        """Raise ``DataValidationError`` if settings are invalid.
-
-        Raises
-        ------
-        DataValidationError
-            If ``symbols`` is empty or ``horizon_days`` is less than 1.
-        """
+        """Raise ``DataValidationError`` if settings are invalid."""
         if not self.symbols:
             raise DataValidationError("symbols must be a non-empty list.")
         if self.horizon_days < 1:
@@ -94,16 +88,10 @@ class RunStudyConfig:
         self.screen_config.validate()
 
     def describe(self) -> str:
-        """Return a short human-readable summary.
-
-        Returns
-        -------
-        str
-            Compact description of study settings.
-        """
+        """Return a short human-readable summary."""
         tickers = ",".join(s.value for s in self.symbols)
         return (
-            f"symbols={tickers}, with_vix={self.with_vix}, "
+            f"symbols={tickers}, {self.extras.describe()}, "
             f"skip_ingest={self.skip_ingest}, "
             f"skip_features={self.skip_features}"
         )
@@ -169,8 +157,8 @@ class RunStudyStores:
 
 
 def run_study(
-    stores: RunStudyStores,
-    config: RunStudyConfig,
+        stores: RunStudyStores,
+        config: RunStudyConfig,
 ) -> BatchScreenResult:
     """Execute the full ingest → features → screen pipeline.
 
@@ -217,8 +205,8 @@ def run_study(
 # ------------------------------------------------------------------
 
 def _handle_ingestion(
-    stores: RunStudyStores,
-    config: RunStudyConfig,
+        stores: RunStudyStores,
+        config: RunStudyConfig,
 ) -> None:
     """Ingest OHLCV for each symbol (and VIX when requested).
 
@@ -235,7 +223,9 @@ def _handle_ingestion(
         If ``skip_ingest`` is True and market data is missing.
     """
     if config.skip_ingest:
-        _assert_market_data_exists(stores, config.symbols, config.with_vix)
+        _assert_market_data_exists(
+            stores, config.symbols, config.extras.include_vix,
+        )
         return
 
     for symbol in config.symbols:
@@ -248,7 +238,7 @@ def _handle_ingestion(
                 date_range=config.date_range,
             )
 
-    if config.with_vix and not stores.has_market_data(VIX_SYMBOL):
+    if config.extras.include_vix and not stores.has_market_data(VIX_SYMBOL):
         logger.info("Ingesting %s (cross-asset)", VIX_SYMBOL.value)
         ingest_market_data(
             source=stores.source,
@@ -259,9 +249,9 @@ def _handle_ingestion(
 
 
 def _assert_market_data_exists(
-    stores: RunStudyStores,
-    symbols: list[Symbol],
-    with_vix: bool,
+        stores: RunStudyStores,
+        symbols: list[Symbol],
+        with_vix: bool,
 ) -> None:
     """Raise if any required market data is missing.
 
@@ -290,8 +280,8 @@ def _assert_market_data_exists(
 
 
 def _handle_feature_builds(
-    stores: RunStudyStores,
-    config: RunStudyConfig,
+        stores: RunStudyStores,
+        config: RunStudyConfig,
 ) -> None:
     """Build feature matrices for each symbol.
 
@@ -311,7 +301,7 @@ def _handle_feature_builds(
         _assert_features_exist(stores, config.symbols)
         return
 
-    extras = FeatureMatrixExtras(include_vix=config.with_vix)
+    extras = config.extras
     for symbol in config.symbols:
         if not stores.has_feature_matrix(symbol):
             logger.info("Building features for %s", symbol.value)
@@ -325,8 +315,8 @@ def _handle_feature_builds(
 
 
 def _assert_features_exist(
-    stores: RunStudyStores,
-    symbols: list[Symbol],
+        stores: RunStudyStores,
+        symbols: list[Symbol],
 ) -> None:
     """Raise if any feature matrix is missing.
 
@@ -351,8 +341,8 @@ def _assert_features_exist(
 
 
 def _run_screening(
-    stores: RunStudyStores,
-    config: RunStudyConfig,
+        stores: RunStudyStores,
+        config: RunStudyConfig,
 ) -> BatchScreenResult:
     """Delegate to single-symbol or batch screening.
 

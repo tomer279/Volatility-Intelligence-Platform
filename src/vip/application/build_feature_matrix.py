@@ -16,6 +16,7 @@ from pathlib import Path
 from vip.domain.errors import PersistenceError
 from vip.domain.value_objects import Symbol
 from vip.features.pipeline import build_feature_matrix
+from vip.features.registry import create_default_registry
 from vip.persistence.feature_matrix_store import ParquetFeatureMatrixStore
 from vip.persistence.parquet_store import ParquetMarketDataStore
 
@@ -72,11 +73,13 @@ class FeatureMatrixExtras:
     Parameters
     ----------
     feature_names : list of str or None, default None
-        Subset of feature-family names.
+        Subset of feature-family names. ``None`` uses all registered families.
     include_vix : bool, default False
         When True, load VIX from the market store and join features.
     vix_symbol : Symbol or None, default None
         Storage symbol for VIX. ``None`` means ``Symbol("VIX")``.
+    include_jump : bool, default False
+        When True, register the daily ``jump`` feature family.
 
     Methods
     -------
@@ -88,6 +91,7 @@ class FeatureMatrixExtras:
     feature_names: list[str] | None = None
     include_vix: bool = False
     vix_symbol: Symbol | None = None
+    include_jump: bool = False
 
     def resolved_vix_symbol(self) -> Symbol:
         """Return the VIX storage symbol.
@@ -108,15 +112,19 @@ class FeatureMatrixExtras:
             Compact extras summary.
         """
         names = "all" if self.feature_names is None else ",".join(self.feature_names)
-        return f"families={names}, include_vix={self.include_vix}"
+        return (
+            f"families={names}, "
+            f"include_vix={self.include_vix}, "
+            f"include_jump={self.include_jump}"
+        )
 
 
 def build_and_persist_feature_matrix(
-    market_store: ParquetMarketDataStore,
-    feature_store: ParquetFeatureMatrixStore,
-    symbol: Symbol,
-    horizon_days: int = DEFAULT_HORIZON_DAYS,
-    extras: FeatureMatrixExtras | None = None,
+        market_store: ParquetMarketDataStore,
+        feature_store: ParquetFeatureMatrixStore,
+        symbol: Symbol,
+        horizon_days: int = DEFAULT_HORIZON_DAYS,
+        extras: FeatureMatrixExtras | None = None,
 ) -> BuildFeatureMatrixResult:
     """Load OHLCV, build a feature matrix, and persist it.
 
@@ -161,10 +169,12 @@ def build_and_persist_feature_matrix(
             )
         vix_ohlcv = market_store.load(vix_symbol)
 
+    registry = create_default_registry(include_jump=resolved.include_jump)
     matrix = build_feature_matrix(
         ohlcv,
         horizon_days=horizon_days,
         feature_names=resolved.feature_names,
+        registry=registry,
         vix_ohlcv=vix_ohlcv,
     )
     output_path = feature_store.save(symbol, matrix)

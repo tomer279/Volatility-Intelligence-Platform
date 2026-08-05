@@ -86,8 +86,9 @@ primary symbol's trading calendar via a **backward as-of join**
 (`timestamp ≤ t`).  This guarantees no forward-fill leakage: if VIX has no
 observation on date *t*, the most recent prior value is used.
 
-VIX features are enabled with the `--with-vix` flag.  They are associative
-(contemporaneously correlated with equity vol), not causal — see §10.
+VIX features are enabled with ``--with vix`` (or ``--with vix,jump``).
+They are associative (contemporaneously correlated with equity vol), not
+causal — see §10.
 
 
 ### 2.6  Jump-robust daily proxies (Milestone 8 stretch)
@@ -111,10 +112,12 @@ the same window. Features are trailing only (information $\le t$).
 **Important limitation.** These are **daily close-to-close proxies**, not
 Barndorff–Nielsen–Shephard estimators from high-frequency / tick returns.
 Do not interpret magnitudes as true jump variation from intraday bipower.
-Enable via registry opt-in (`create_default_registry(include_jump=True)`).
-The multi-horizon CLI does **not** yet expose `--with-jump-features`;
-`vip screen-horizons` still builds core families only (+ optional VIX).
-Core default families remain returns, har, range, volume (+ optional VIX).
+Enable via registry opt-in (`create_default_registry(include_jump=True)`),
+`FeatureMatrixExtras(include_jump=True)`, or CLI ``--with jump`` /
+``--with vix,jump`` on `vip features`, `vip run`, and `vip screen-horizons`
+(rebuilds matrices; ignored when ``--skip-features`` is set unless columns
+already exist). Core default families remain returns, har, range, volume
+(+ optional VIX).
 
 
 ---
@@ -431,9 +434,9 @@ Do not mix unlabeled multi-horizon metrics in one table without a
 When the `jump` registry family is enabled (§2.6), columns are **daily**
 bipower / jump-proportion proxies, not high-frequency Barndorff–Nielsen–
 Shephard estimators. Do not narrate them as tick-based jump variation in
-the multi-horizon memo. Flagship `vip screen-horizons` currently omits jump
-unless features are built offline with `include_jump=True`
-(CLI `--with-jump-features` not wired).
+the multi-horizon memo. Flagship ``vip screen-horizons --with jump``
+(or ``vix,jump``) includes the family when matrices are rebuilt. Omit
+``jump`` from ``--with`` for the default core (+ optional VIX-only) study.
 
 
 ## 12  Caveats

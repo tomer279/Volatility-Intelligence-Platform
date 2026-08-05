@@ -173,6 +173,8 @@ class MultiHorizonScreenConfig:
         Forecast horizons in trading days (default locked ``1, 5, 21``).
     with_vix : bool
         When True, join VIX features during feature builds.
+    with_jump_features : bool
+        When True, include the daily jump-robust feature family.
     skip_features : bool
         When True, require an existing matrix with the per-horizon target.
     screen_config : ScreenConfig
@@ -197,6 +199,7 @@ class MultiHorizonScreenConfig:
     inference: MultiHorizonInferenceOverrides = field(
         default_factory=MultiHorizonInferenceOverrides
     )
+    with_jump_features: bool = False
 
     def validate(self) -> None:
         """Raise ``DataValidationError`` when configuration is invalid."""
@@ -216,7 +219,9 @@ class MultiHorizonScreenConfig:
         joined = ",".join(str(h) for h in self.horizons)
         return (
             f"symbol={self.symbol.value}, horizons=[{joined}], "
-            f"with_vix={self.with_vix}, skip_features={self.skip_features}"
+            f"with_vix={self.with_vix}, "
+            f"with_jump_features={self.with_jump_features}, "
+            f"skip_features={self.skip_features}"
         )
 
 
@@ -365,7 +370,10 @@ def _ensure_features_for_horizon(
         feature_store=stores.feature_store,
         symbol=config.symbol,
         horizon_days=horizon_days,
-        extras=FeatureMatrixExtras(include_vix=config.with_vix),
+        extras=FeatureMatrixExtras(
+            include_vix=config.with_vix,
+            include_jump=config.with_jump_features,
+        ),
     )
 
 
@@ -467,6 +475,7 @@ def _write_study_artifacts(
         "baseline_model": baseline,
         "alpha": alpha,
         "with_vix": config.with_vix,
+        "with_jump_features": config.with_jump_features,
         "per_horizon": per_horizon_meta,
     }
     _write_json(study_dir / "screen_meta.json", meta_payload)

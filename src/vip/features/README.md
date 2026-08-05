@@ -64,7 +64,9 @@ Build predictive features and realized-volatility targets from canonical daily O
 - Source OHLCV should be valid daily bars; `build_feature_matrix` re-validates via ingestion validators.
 - HAR columns are **trailing** features; do not confuse them with the forward target `target_rv_cc_5d`.
 - Output path for persisted matrices (Milestone 2 later steps): `data/processed/{SYMBOL}/features.parquet`.
-- VIX is optional: pass `vix_ohlcv` into the pipeline, or use `vip features --with-vix` after `vip ingest --symbol VIX`.
+- VIX is optional: pass `vix_ohlcv` into the pipeline, or use `vip features --with vix` after `vip ingest --symbol VIX`.
 - Cross-asset joins never use future VIX prints (`direction="backward"` only).
-- Jump family is opt-in: `create_default_registry(include_jump=True)`, then `build_all(..., names=["jump"])` or pass that registry into `build_feature_matrix`.
+- Jump family is opt-in: `vip features --with jump` (or `--with vix,jump`),
+  `FeatureMatrixExtras(include_jump=True)`, or
+  `create_default_registry(include_jump=True)` then `build_all` / `build_feature_matrix`.
 - Jump estimators are **daily close-to-close proxies**, not high-frequency / tick bipower; see `docs/research_methodology.md` §2.6.

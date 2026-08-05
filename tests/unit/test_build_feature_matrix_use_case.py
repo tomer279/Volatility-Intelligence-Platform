@@ -59,6 +59,7 @@ def test_build_and_persist_feature_matrix(tmp_path: Path) -> None:
     assert "target_rv_cc_5d" in loaded.columns
     assert not loaded.isna().any().any()
 
+
 def test_build_with_vix_increases_feature_count(tmp_path: Path) -> None:
     market_store = ParquetMarketDataStore(tmp_path / "raw")
     feature_store = ParquetFeatureMatrixStore(tmp_path / "processed")
@@ -75,3 +76,22 @@ def test_build_with_vix_increases_feature_count(tmp_path: Path) -> None:
     assert result.feature_count == 10  # 8 own-symbol + 2 VIX
     loaded = feature_store.load(Symbol("SPY"))
     assert {"vix_level", "vix_chg_1d"} <= set(loaded.columns)
+
+
+def test_build_with_jump_increases_feature_count(tmp_path: Path) -> None:
+    """Jump family adds three proportion columns (not bipower levels)."""
+    market_store = ParquetMarketDataStore(tmp_path / "raw")
+    feature_store = ParquetFeatureMatrixStore(tmp_path / "processed")
+    market_store.save(Symbol("SPY"), _synthetic_ohlcv())
+
+    result = build_and_persist_feature_matrix(
+        market_store=market_store,
+        feature_store=feature_store,
+        symbol=Symbol("SPY"),
+        horizon_days=5,
+        extras=FeatureMatrixExtras(include_jump=True),
+    )
+    assert result.feature_count == 11  # 8 core + 3 jump_prop
+    loaded = feature_store.load(Symbol("SPY"))
+    assert {"jump_prop_1d", "jump_prop_5d", "jump_prop_21d"} <= set(loaded.columns)
+    assert not any(c.startswith("bpv_cc_") for c in loaded.columns)

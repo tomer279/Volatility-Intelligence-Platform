@@ -21,7 +21,7 @@ bipower_volatility_trailing
 jump_proportion_trailing
     Trailing jump-proportion proxy ``max(0, RV - BPV) / RV``.
 build_jump_features
-    Build bipower-vol and jump-proportion columns at HAR windows.
+    Build jump-proportion columns at HAR windows (BPV used internally only).
 FeatureSpec
     Metadata and builder callable for one feature family.
 FeatureRegistry

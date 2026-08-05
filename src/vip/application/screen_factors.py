@@ -48,6 +48,7 @@ from vip.evaluation.importance import (
     ImportanceOptions,
     WalkForwardSpec,
     permutation_importance_folds,
+    DEFAULT_IMPORTANCE_DELTA_CAP
 )
 from vip.evaluation.shap_importance import shap_available, shap_importance_folds
 from vip.modeling.tree_models import RandomForestVolModel
@@ -105,6 +106,9 @@ class ScreenConfig:
         Top-k used for hit-rate stability.
     random_seed : int, default 0
         Base RNG seed for column shuffles.
+    importance_delta_cap : float or None, default 1.0
+        Clip per-shuffle ΔQLIKE to ``[-cap, cap]`` before fold aggregation.
+        ``None`` disables clipping (diagnostics only).
 
     Methods
     -------
@@ -119,6 +123,7 @@ class ScreenConfig:
     n_repeats: int = DEFAULT_N_REPEATS
     top_k: int = DEFAULT_TOP_K
     random_seed: int = DEFAULT_RANDOM_SEED
+    importance_delta_cap: float | None = DEFAULT_IMPORTANCE_DELTA_CAP
 
     def validate(self) -> None:
         """Raise if any screen setting is invalid."""
@@ -129,6 +134,7 @@ class ScreenConfig:
         ImportanceOptions(
             n_repeats=self.n_repeats,
             random_seed=self.random_seed,
+            delta_cap=self.importance_delta_cap,
         ).validate()
         StabilityOptions(top_k=self.top_k).validate()
 
@@ -142,7 +148,8 @@ class ScreenConfig:
         """
         return (
             f"n_splits={self.n_splits}, embargo={self.embargo_size}, "
-            f"n_repeats={self.n_repeats}, top_k={self.top_k}"
+            f"n_repeats={self.n_repeats}, top_k={self.top_k}, "
+            f"importance_delta_cap={self.importance_delta_cap}"
         )
 
 
@@ -459,6 +466,7 @@ class ScreenArtifactContext:
             "alpha": inference.bootstrap.alpha,
             "include_hln_dm": inference.include_hln_dm,
             "include_nonoverlap_sensitivity": inference.include_nonoverlap_sensitivity,
+            "importance_delta_cap": self.config.importance_delta_cap,
         }
 
 
@@ -670,6 +678,7 @@ def _run_ridge_importance(
         options=ImportanceOptions(
             n_repeats=config.n_repeats,
             random_seed=config.random_seed,
+            delta_cap=config.importance_delta_cap,
         ),
     )
     ranking = summarize_importance(

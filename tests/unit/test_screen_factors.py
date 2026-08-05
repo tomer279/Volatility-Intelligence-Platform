@@ -9,6 +9,7 @@ import pandas as pd
 
 from vip.application.screen_factors import ScreenConfig, screen_factors
 from vip.domain.value_objects import Symbol
+from vip.evaluation.importance import DEFAULT_IMPORTANCE_DELTA_CAP
 from vip.persistence.artifact_store import FilesystemArtifactStore
 from vip.persistence.feature_matrix_store import ParquetFeatureMatrixStore
 
@@ -87,3 +88,10 @@ def test_screen_factors_persists_artifacts(tmp_path: Path) -> None:
 
     assert "mean_delta_qlike" in result.tables.summary.columns
     assert "bootstrap_pvalue" in result.tables.summary.columns
+
+
+def test_screen_config_defaults_importance_delta_cap() -> None:
+    """Factor screens should clip extreme permutation deltas by default."""
+    config = ScreenConfig()
+    assert config.importance_delta_cap == DEFAULT_IMPORTANCE_DELTA_CAP
+    config.validate()

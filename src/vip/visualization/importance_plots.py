@@ -142,6 +142,11 @@ def _prepare_ranking(ranking: pd.DataFrame, top_n: int) -> pd.DataFrame:
     ).head(top_n)
     frame = ordered.iloc[::-1].copy()
     frame["__plot_importance__"] = frame[importance_column]
+    display_cap = frame[importance_column].quantile(0.95)
+    if display_cap > 0:
+        frame["__plot_importance__"] = frame[importance_column].clip(
+            upper=display_cap * 2
+        )
     return frame
 
 

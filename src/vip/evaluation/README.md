@@ -76,5 +76,5 @@ including statistical inference on out-of-sample QLIKE gaps vs HAR.
 - Inference uses per-row OOS losses only; never refit models inside bootstrap replicates.
 - Permutation importance shuffles **test** columns only; the model is not refit inside a shuffle.
 - Importance = permuted QLIKE − baseline QLIKE (higher means more important).
-- Ranking aggregate defaults to **median** ΔQLIKE across folds (mean still reported); optional `delta_cap` clips per-shuffle deltas.
+- Ranking aggregate defaults to **median** ΔQLIKE across folds (mean still reported); factor screens default `delta_cap=1.0` via `ScreenConfig.importance_delta_cap` (clips per-shuffle deltas).
 - Install optional TreeSHAP deps: `pip install -e ".[nonlinear]"`.

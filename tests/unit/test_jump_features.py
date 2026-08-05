@@ -52,12 +52,9 @@ def test_registry_lists_jump_when_opted_in() -> None:
 
 
 def test_build_jump_features_columns() -> None:
-    """Jump builder should emit bipower vol and jump-proportion columns."""
+    """Jump builder should emit jump-proportion columns only."""
     features = build_jump_features(_synthetic_ohlcv())
     assert list(features.columns) == [
-        "bpv_cc_1d",
-        "bpv_cc_5d",
-        "bpv_cc_21d",
         "jump_prop_1d",
         "jump_prop_5d",
         "jump_prop_21d",
@@ -168,3 +165,9 @@ def test_invalid_window_raises() -> None:
     returns = daily_log_returns(_synthetic_ohlcv()["close"])
     with pytest.raises(DataValidationError, match="Window must be at least 1"):
         bipower_variation_trailing(returns, 0)
+
+
+def test_jump_family_excludes_bpv_level_columns() -> None:
+    """Screening jump family must not duplicate HAR rv_cc_* levels."""
+    features = build_jump_features(_synthetic_ohlcv())
+    assert not any(name.startswith("bpv_cc_") for name in features.columns)

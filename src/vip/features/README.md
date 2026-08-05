@@ -23,7 +23,7 @@ Build predictive features and realized-volatility targets from canonical daily O
 - `jump_proportion_trailing(returns, window)` - `max(0, RV - BPV) / RV` ending at `t`.
 - `build_return_features(ohlcv)` - `ret_1d`, `ret_5d`.
 - `build_har_features(ohlcv)` - `rv_cc_1d`, `rv_cc_5d`, `rv_cc_21d`.
-- `build_jump_features(ohlcv)` - `bpv_cc_*` and `jump_prop_*` at 1/5/21.
+- `build_jump_features(ohlcv)` - `jump_prop_*` at 1/5/21.
 - `build_range_features(ohlcv)` - `range_1d`, `range_5d_mean`.
 - `build_volume_features(ohlcv)` - `volume_z_21d`.
 - `create_default_registry(include_jump=False)` - Core families; set `include_jump=True` for `jump`.
@@ -48,9 +48,6 @@ Build predictive features and realized-volatility targets from canonical daily O
 | `rv_cc_1d` | har | Trailing 1d RV: `sqrt(r_t^2)` |
 | `rv_cc_5d` | har | Trailing 5d RV ending at `t` |
 | `rv_cc_21d` | har | Trailing 21d RV ending at `t` |
-| `bpv_cc_1d` | jump | Trailing 1d daily bipower vol (not tick bipower) |
-| `bpv_cc_5d` | jump | Trailing 5d daily bipower vol |
-| `bpv_cc_21d` | jump | Trailing 21d daily bipower vol |
 | `jump_prop_1d` | jump | Jump proportion at 1d window |
 | `jump_prop_5d` | jump | Jump proportion at 5d window |
 | `jump_prop_21d` | jump | Jump proportion at 21d window |
@@ -70,3 +67,5 @@ Build predictive features and realized-volatility targets from canonical daily O
   `FeatureMatrixExtras(include_jump=True)`, or
   `create_default_registry(include_jump=True)` then `build_all` / `build_feature_matrix`.
 - Jump estimators are **daily close-to-close proxies**, not high-frequency / tick bipower; see `docs/research_methodology.md` §2.6.
+- Bipower variation is computed internally for `jump_prop_*` only; `bpv_cc_*` level columns are **not** exported (they duplicate HAR `rv_cc_*` and destabilize permutation importance).
+- `--with jump` adds **3** columns (`jump_prop_1d/5d/21d`), not 6.

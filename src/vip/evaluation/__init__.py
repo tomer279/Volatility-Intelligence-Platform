@@ -92,6 +92,7 @@ from vip.evaluation.importance import (
     ImportanceOptions,
     WalkForwardSpec,
     permutation_importance_folds,
+    DEFAULT_IMPORTANCE_DELTA_CAP
 )
 from vip.evaluation.inference import (
     BootstrapBlockBounds,
@@ -154,4 +155,5 @@ __all__ = [
     "default_bootstrap_block_length",
     "default_embargo_for_horizon",
     "validate_bootstrap_block_length",
+    "DEFAULT_IMPORTANCE_DELTA_CAP"
 ]

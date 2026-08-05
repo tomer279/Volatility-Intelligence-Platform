@@ -222,8 +222,8 @@ def create_default_registry(*, include_jump: bool = False) -> FeatureRegistry:
                 name="jump",
                 builder=build_jump_features,
                 description=(
-                    "Daily bipower-vol and jump-proportion proxies "
-                    "(not tick bipower)."
+                    "Daily jump-proportion proxies at HAR windows "
+                    "(not tick bipower; BPV used internally only)."
                 ),
             )
         )

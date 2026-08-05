@@ -95,7 +95,6 @@ causal — see §10.
 
 | Column | Description |
 | ------ | ----------- |
-| `bpv_cc_1d` / `5d` / `21d` | Trailing daily bipower volatility $\sqrt{\mathrm{BPV}}$ at HAR windows |
 | `jump_prop_1d` / `5d` / `21d` | $\max(0, \mathrm{RV} - \mathrm{BPV}) / \mathrm{RV}$ (0 when RV = 0) |
 
 **Definition (daily proxy).** For close-to-close log returns $r_t$,
@@ -119,6 +118,10 @@ Enable via registry opt-in (`create_default_registry(include_jump=True)`),
 already exist). Core default families remain returns, har, range, volume
 (+ optional VIX).
 
+**Screening contract.** Only `jump_prop_*` columns enter the feature matrix.
+Trailing bipower **levels** are not exported as predictors (they are nearly
+collinear with `rv_cc_*` and can inflate permutation ΔQLIKE). BPV is still
+used internally to define jump proportion.
 
 ---
 
@@ -228,8 +231,10 @@ The primary screening model is **Ridge**.  For each walk-forward fold:
 2. For each feature column *j*, shuffle the column in the test set and re-score → QLIKE_shuffled.
 3. Importance = ΔQLIKE = QLIKE_shuffled − QLIKE_baseline.
 
-The model is **not** refit inside permutations.  An optional `delta_cap`
-truncates extreme ΔQLIKE values within a fold.
+The model is **not** refit inside permutations.  An optional ``delta_cap``
+truncates extreme per-shuffle ΔQLIKE values within a fold.  Factor screens
+default to ``delta_cap = 1.0`` (set ``importance_delta_cap=None`` on
+``ScreenConfig`` only for diagnostics).
 
 ### 8.2  Aggregation — median importance (Milestone 5)
 
@@ -431,8 +436,8 @@ Do not mix unlabeled multi-horizon metrics in one table without a
 
 ### 11.5  Jump-robust features (stretch)
 
-When the `jump` registry family is enabled (§2.6), columns are **daily**
-bipower / jump-proportion proxies, not high-frequency Barndorff–Nielsen–
+When the `jump` registry family is enabled (§2.6), the matrix includes
+**daily jump-proportion** columns only (`jump_prop_*`), not high-frequency Barndorff–Nielsen–
 Shephard estimators. Do not narrate them as tick-based jump variation in
 the multi-horizon memo. Flagship ``vip screen-horizons --with jump``
 (or ``vix,jump``) includes the family when matrices are rebuilt. Omit
@@ -459,7 +464,7 @@ the multi-horizon memo. Flagship ``vip screen-horizons --with jump``
    exogenous shocks.
 6. **QLIKE spike robustness.**  QLIKE is unbounded; a single extreme prediction
   can dominate fold-level importance.  The platform uses median aggregation and
-   an optional `delta_cap` to mitigate this.
+  a default ``delta_cap = 1.0`` on factor screens (override with ``None`` for diagnostics) to mitigate this.
 7. **Walk-forward assumptions.**  Expanding windows assume stationarity of the
   feature–target relationship.  Structural breaks (e.g. post-COVID liquidity
    regime) may violate this.

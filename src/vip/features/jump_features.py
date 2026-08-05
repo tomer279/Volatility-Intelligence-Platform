@@ -3,7 +3,7 @@
 Exports
 -------
 build_jump_features
-    Build trailing bipower-vol and jump-proportion columns at HAR windows.
+    Build trailing jump-proportion columns at HAR windows (BPV internal only).
 """
 
 from __future__ import annotations
@@ -11,10 +11,7 @@ from __future__ import annotations
 import pandas as pd
 
 from vip.domain.errors import DataValidationError
-from vip.features.realized import (
-    bipower_volatility_trailing,
-    jump_proportion_trailing,
-)
+from vip.features.realized import jump_proportion_trailing
 from vip.features.targets import daily_log_returns
 
 CLOSE_COLUMN = "close"
@@ -38,7 +35,6 @@ def build_jump_features(ohlcv: pd.DataFrame) -> pd.DataFrame:
     -------
     pandas.DataFrame
         Columns:
-        - ``bpv_cc_1d``, ``bpv_cc_5d``, ``bpv_cc_21d``
         - ``jump_prop_1d``, ``jump_prop_5d``, ``jump_prop_21d``
 
     Raises
@@ -52,9 +48,6 @@ def build_jump_features(ohlcv: pd.DataFrame) -> pd.DataFrame:
     returns = daily_log_returns(ohlcv[CLOSE_COLUMN])
     return pd.DataFrame(
         {
-            "bpv_cc_1d": bipower_volatility_trailing(returns, WINDOW_1D),
-            "bpv_cc_5d": bipower_volatility_trailing(returns, WINDOW_5D),
-            "bpv_cc_21d": bipower_volatility_trailing(returns, WINDOW_21D),
             "jump_prop_1d": jump_proportion_trailing(returns, WINDOW_1D),
             "jump_prop_5d": jump_proportion_trailing(returns, WINDOW_5D),
             "jump_prop_21d": jump_proportion_trailing(returns, WINDOW_21D),

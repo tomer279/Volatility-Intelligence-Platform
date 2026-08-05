@@ -43,20 +43,37 @@ Activate the virtual environment:
 source .venv/bin/activate
 ```
 
-Install the package (editable) plus optional extras as needed:
+### Recommended (full install)
+
+Install the CLI plus optional extras (SHAP/LightGBM, FastAPI server, dev/test tools):
 
 ```bash
-pip install -e .
-# Contributors / tests:
-pip install -e ".[dev]"
-# Tree models + SHAP:
-pip install -e ".[nonlinear]"
-# Artifact API:
-pip install -e ".[api]"
+pip install -e ".[all]"
 ```
 
-On Windows, if `python` is a Store stub, prefer `py -3.11 -m venv .venv` and
-`py -m pip install -e ".[dev]"`.
+Verify:
+
+```bash
+vip --help
+vip info
+```
+
+### Other install options
+
+| Command | Use when |
+|--------|----------|
+| `pip install -e .` | Core research CLI only (no SHAP, no API, no pytest) |
+| `pip install -e ".[nonlinear]"` | Tree models + SHAP |
+| `pip install -e ".[api]"` | Optional artifact HTTP API |
+| `pip install -e ".[dev]"` | Tests, lint, type-check |
+
+
+On Windows, if `python` is a Store stub, use:
+
+```bash
+py -3.11 -m venv .venv
+py -m pip install -e ".[all]"
+```
 
 ## Quick start
 

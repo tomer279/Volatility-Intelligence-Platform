@@ -37,6 +37,8 @@ Treat that as a **supervised forecasting problem** with strict temporal integrit
 
 ---
 
+
+
 ## 2. Suggested Directory Structure
 
 ```text
@@ -171,7 +173,11 @@ Package name `vip` keeps imports short (`from vip.features import ...`) while th
 
 ---
 
+
+
 ## 3. Modules and Responsibilities
+
+
 
 ### Domain (`vip.domain`)
 
@@ -180,6 +186,8 @@ Package name `vip` keeps imports short (`from vip.features import ...`) while th
 - **errors:** typed failures (`DataValidationError`, `LeakageError`, `ConfigError`)  
 - No pandas/sklearn in protocols’ *conceptual* contracts where possible; adapters may accept DataFrames at boundaries
 
+
+
 ### Ingestion (`vip.ingestion`)
 
 - Fetch OHLCV (and later options/VIX)  
@@ -187,12 +195,16 @@ Package name `vip` keeps imports short (`from vip.features import ...`) while th
 - Validate gaps, duplicates, timezone, survivorship assumptions  
 - Persist raw + normalized tables via persistence layer
 
+
+
 ### Features (`vip.features`)
 
 - **targets:** realized variance/vol at horizons h \in 1d, 5d, 21d; Parkinson, Garman–Klass, close-to-close  
 - **predictors:** return lags, HAR components, ranges, volume shocks, IV proxies (if available), calendar, cross-asset  
 - **registry:** name → builder for config-driven feature sets  
 - **pipeline:** compose transformers with explicit lookback and shift rules to prevent leakage
+
+
 
 ### Modeling (`vip.modeling`)
 
@@ -202,6 +214,8 @@ Package name `vip` keeps imports short (`from vip.features import ...`) while th
 - Trainer: fit on train window only; serialize with metadata  
 - Selection: nested or sequential walk-forward factor screening
 
+
+
 ### Evaluation (`vip.evaluation`)
 
 - Loss functions suited to vol (QLIKE, MSE on RV or log-RV)  
@@ -210,10 +224,14 @@ Package name `vip` keeps imports short (`from vip.features import ...`) while th
 - Factor importance + stability across regimes  
 - Statistical comparison (M7: block bootstrap primary; optional HLN–DM + Newey–West)
 
+
+
 ### Visualization / Reporting
 
 - Research-grade charts (not dashboard candy): RV vs forecast, rolling skill, importance heatmaps  
 - HTML/Markdown experiment reports with config hash, data version, metrics table
+
+
 
 ### Persistence / Config / Orchestration / CLI
 
@@ -223,6 +241,8 @@ Package name `vip` keeps imports short (`from vip.features import ...`) while th
 - CLI mirrors the research workflow for demos and CI
 
 ---
+
+
 
 ## 4. Data Flow
 
@@ -272,6 +292,8 @@ Config (symbol, dates, horizon, features, model)
 
 ---
 
+
+
 ## 5. External Libraries
 
 
@@ -298,6 +320,8 @@ Config (symbol, dates, horizon, features, model)
 
 ---
 
+
+
 ## 6. What Should Be Configurable
 
 All of this belongs in YAML (and env for secrets), validated by Pydantic:
@@ -320,6 +344,8 @@ All of this belongs in YAML (and env for secrets), validated by Pydantic:
 Experiment configs should be **diffable and checked into git**; secrets (API keys) only via environment.
 
 ---
+
+
 
 ## 7. Recommended Design Patterns
 
@@ -347,7 +373,11 @@ Experiment configs should be **diffable and checked into git**; secrets (API key
 
 ---
 
+
+
 ## 8. Development Roadmap
+
+
 
 ### Milestone 0 — Foundations (week 1) - DONE (2026-07-28)
 
@@ -359,6 +389,8 @@ Completed:
 - Parquet store + logging  
 **Exit:** `pip install -e .` and empty CLI `vip --help`
 
+
+
 ### Milestone 1 — Data spine - DONE (2026-07-28)
 
 Completed:
@@ -368,6 +400,8 @@ Completed:
 - SPY Parquet persistence under `data/raw/`
 - Unit tests (network-free) and package docs
 
+
+
 ### Milestone 2 — Features & targets - DONE (2026-07-28)
 
 Completed:
@@ -375,6 +409,8 @@ Completed:
 - RV targets (multi-horizon) + HAR / return / range / volume features  
 - Feature registry + leakage unit tests (shift/alignment assertions)  
 **Exit:** feature matrix for SPY with documented column dictionary
+
+
 
 ### Milestone 3 — Baselines & evaluation — DONE (2026-07-28)
 
@@ -384,6 +420,8 @@ Completed:
 - QLIKE/MSE/MAE + expanding walk-forward with embargo
 - `vip evaluate` comparison table + artifact persistence
 
+
+
 ### Milestone 4 — Factor intelligence — DONE (2026-07-28)
 
 Completed:
@@ -391,6 +429,8 @@ Completed:
 - Regularized linear models (Ridge/Lasso/ElasticNet) + permutation importance
 - Factor screening use-case, stability ranking, importance plot
 - First HTML research report via `vip screen`
+
+
 
 ### Milestone 5 — Nonlinear & robustness — DONE (2026-07-29)
 
@@ -404,6 +444,8 @@ Completed:
 - "What works when" section in HTML report
 - Multi-symbol batch screening (`vip screen-batch`)
 
+
+
 ### Milestone 6 — Platform polish (portfolio-ready) - DONE (2026-07-29)
 
 - Full CLI: ingest → features → experiment → report  
@@ -411,6 +453,8 @@ Completed:
 - Docs: methodology, architecture, how to add a feature  
 - Optional: thin FastAPI `GET /experiments/{id}` for demo  
 **Exit:** one-command reproduction of the flagship SPY/QQQ study
+
+
 
 ### Milestone 7 — Statistical inference on OOS gaps - done (2026-08-01)
 
@@ -445,7 +489,6 @@ HLN–DM in `docs/research_methodology.md`
 p-values (HLN–DM optional alongside); methodology states that rankings without
 inference are not findings.
 
-
 ### Milestone 8 — Multi-horizon factor intelligence — DONE (2026-08-04)
 
 **Motivation.** Horizon was a single `target.horizon_days` knob. PMs need one
@@ -455,15 +498,15 @@ the same horse-race and M7 inference contract.
 **Scope (locked):**
 
 - Orchestrate screens over horizons **{1, 5, 21}** via `screen_multi_horizon`
-  / `vip screen-horizons`
+/ `vip screen-horizons`
 - Per horizon: `target_rv_cc_{h}d`, `embargo_size = h`, `nw_lags = h − 1`,
-  block bootstrap primary vs `har_rv_ols` (block defaults **10 / 15 / 21**;
-  ranges 5–15 / 10–20 / 15–42)
+block bootstrap primary vs `har_rv_ols` (block defaults **10 / 15 / 21**;
+ranges 5–15 / 10–20 / 15–42)
 - Cross-horizon `horizon_summary.json` + HTML **Skill by horizon**
 - Keep single-horizon `vip screen` / `vip run` (default h=5) backward compatible
 - Methodology + package docs; full pytest green for exit
 - Stretch: daily jump-robust feature family (registry + leakage tests);
-  CLI opt-in via ``--with jump`` / ``--with vix,jump``
+CLI opt-in via `--with jump` / `--with vix,jump`
 
 **Exit checklist (code vs docs):**
 
@@ -475,17 +518,47 @@ the same horse-race and M7 inference contract.
 - [x] M7 inference wired per horizon
 - [x] `horizon_summary.json` + HTML “Skill by horizon”
 - [x] CLI `vip screen-horizons`
-- [ ] Methodology § Multi-horizon evaluation + README alignment (Agent E)
-- [ ] Full `pytest -q` green after docs; then flip status to DONE
-- [x] Stretch: jump family + leakage tests + CLI ``--with jump``
-  (``features`` / ``run`` / ``screen-horizons``)
+- [x] Methodology § Multi-horizon evaluation + README alignment (Agent E)
+- [x] Full `pytest -q` green after docs; then flip status to DONE
+- [x] Stretch: jump family + leakage tests + CLI `--with jump`
+  (`features` / `run` / `screen-horizons`)
 
-**Missing for DONE:** apply methodology/README/`plan` packaging below; run
-flagship SPY sequence; confirm `pytest -q`. Then change heading to
-`DONE (YYYY-MM-DD)` and tick the remaining boxes.
+**Exit met** (core + jump stretch).
 
+### Milestone 9 — IV−RV gap & implied-as-forecast — DONE (2026-08-09)
 
-### Later — post-M7 research backlog (ordered; not committed)
+**Motivation.** Beyond `vix_level` / `vix_chg_1d` as covariates: does the
+**IV−RV gap** add predictive information, and can a **VIX-based forecast**
+compete with HAR under the same walk-forward + M7 bootstrap contract?
+
+**Scope (locked):**
+
+- Feature family `iv_rv`: `vix_vol_daily`, `vix_minus_rv_{1,5,21}d`,
+optional `vix_rv_ratio_5d`; conversion
+`vix_vol_daily = (vix_level / 100) / sqrt(252)`
+- Model `vix_as_forecast` (intercept OLS on daily VIX vol) in horse-race vs
+`har_rv_ols`; M7 block bootstrap primary
+- CLI `--with iv_rv` (implies VIX); bare `--with vix` unchanged (no gaps)
+- HTML **Implied vs realized**; methodology + package docs
+ - Stretch: `rates` family shipped (`--with rates` / TNX); peer + multi-horizon IV narrative deferred
+
+**Exit checklist (code vs docs):**
+
+- [x] `vix_level_to_daily_vol` + IV−RV builders + unit tests
+- [x] Leakage tests (as-of VIX; trailing RV; no target read)
+- [x] Pipeline / `FeatureMatrixExtras.include_iv_rv` / CLI `iv_rv`
+- [x] `vix_as_forecast` + registry + unit tests
+- [x] Horse-race + M7 inference wiring (`test_iv_rv_screen_wiring.py`)
+- [x] HTML “Implied vs realized” + locked wording tests
+- [x] Methodology § Implied vs realized + README/`plan` packaging (Agent E)
+- [x] Flagship SPY sequence inspected; full `pytest -q` green; then DONE
+- [x] (Stretch) rates family code + package READMEs (methodology rates § → Agent E)
+- [ ] (Stretch) peer ETF / multi-horizon IV narrative (deferred)
+
+**Exit met** for core acceptance criteria 1–9. Stretch criterion 10 partly met
+(rates); peer / multi-horizon IV narrative still deferred.
+
+### Later research backlog (ordered; not committed)
 
 Stochastic calculus and richer data are **enhancements**, not a second product.
 New work must still plug into registries, walk-forward QLIKE evaluation, and
@@ -494,16 +567,13 @@ pricing lab.
 
 **Near-term extensions (fit the current spine)**
 
-- *(Milestone 8)* Multi-horizon screens and stretch daily jump proxies — see
-  Milestone 8 section above (core code in tree; exit gated on docs + pytest)
+- *(Milestone 8)* Multi-horizon screens + jump stretch — DONE (2026-08-04)
 - Additional cross-asset covariates behind `MarketDataSource` + feature
 registry (e.g. Treasury yields, simple sector/ETF returns) with as-of joins
 - Parametric / filter baselines in the same horse-race (e.g. discrete OU-style
 vol mean reversion, simple stochastic-vol inspired filters) — must beat HAR
 on OOS QLIKE to matter
-- Stronger realized-vs-implied studies using existing VIX (and later single-name
-IV when a vendor exists): IV level, IV−RV gap as features; IV as a competing
-forecast of forward RV
+ - *(Milestone 9)* IV−RV gap + `vix_as_forecast` — DONE (2026-08-09); stretch `rates` shipped; peer deferred
 
 **Optional research diagnostics (secondary to OOS skill)**
 
@@ -520,12 +590,15 @@ optional family
 - Intraday / high-frequency RV
 - Options-implied surfaces and single-name IV vendors (Polygon / similar)
 - Option Greeks, variance-reduced MC pricing, Malliavin-based Greek estimation
-(only reconsider after options data is in scope and IV−RV research is real)
+  (only reconsider after options data is in scope; M9 covers VIX IV−RV only,
+  not single-name IV / surfaces)
 - News / social sentiment pipelines
 - Portfolio-of-names / cross-sectional models
 - Live scheduling / production monitoring
 
 ---
+
+
 
 ## Design Principles to Lock In Now
 
@@ -536,6 +609,8 @@ optional family
 5. **Grow behind registries** — new factors/models shouldn’t touch the orchestrator.
 
 ---
+
+
 
 ## Locked Decisions
 
@@ -550,41 +625,69 @@ optional family
 - M7 inference: block bootstrap primary (block length default 15); NW lags = horizon−1; HLN–DM secondary
 - M8 horizons: 1 / 5 / 21; embargo = h; nw_lags = h−1; bootstrap ℓ defaults 10 / 15 / 21
 - M8 CLI: `vip screen-horizons`; single-horizon default remains 5-day
+- M9 IV proxy: VIX (index/ETF research; ≠ single-name IV)
+- M9 conversion: `vix_vol_daily = (vix_level / 100) / sqrt(252)`
+- M9 family / model: `iv_rv` gaps; `vix_as_forecast` (intercept OLS)
+- M9 CLI: gaps behind `iv_rv` (implies VIX); bare `vix` = level/chg only
 
 ---
 
+
+
 ## Status
+
+
 
 ### Milestone 0 — Foundations — DONE (2026-07-28)
 
+
+
 ### Milestone 1 — Data spine — DONE (2026-07-28)
+
+
 
 ### Milestone 2 — Features & targets — DONE (2026-07-28)
 
+
+
 ### Milestone 3 — Baselines & evaluation — DONE (2026-07-28)
+
+
 
 ### Milestone 4 — Factor intelligence — DONE (2026-07-28)
 
+
+
 ### Milestone 5 — Nonlinear & robustness — DONE (2026-07-29)
+
+
 
 ### Milestone 6 — Platform polish (portfolio-ready) - DONE (2026-07-29)
 
+
+
 ### Milestone 7 — Statistical inference on OOS gaps — DONE (2026-08-01)
+
+
 
 ### Milestone 8 — Multi-horizon factor intelligence — DONE (2026-08-04)
 
-Code in tree (orchestration, horizon defaults, CLI, HTML, unit tests). Exit
-blocked on methodology multi-horizon section + green full pytest; stretch CLI
-jump flag optional.
 
-Next after M8 DONE: remaining post-M7 backlog (cross-asset / IV−RV, parametric
-vol baselines, optional diagnostics); keep HF RV, options surfaces, cross-section,
-and scheduling deferred.
+Multi-horizon screens, horizon-aware M7 inference, Skill-by-horizon HTML,
+methodology §11; jump stretch via ``--with jump``.
 
+### Milestone 9 — IV−RV gap & implied-as-forecast — DONE (2026-08-09)
+
+IV−RV family, `vix_as_forecast` horse-race + M7 inference, HTML Implied vs
+realized, methodology §12, package docs. Stretch `rates` (`--with rates` / TNX)
+shipped; peer / multi-horizon IV narrative deferred.
+
+Next: Milestone 10 parametric/filter baselines; optional diagnostics; keep
+HF RV, options surfaces, cross-section, scheduling deferred.
 
 ## Suggested Flagship Demo Narrative
 
-> For liquid US ETFs (SPY, QQQ, IWM), screen which feature families predict next-5-day realized volatility; show that HAR components dominate short horizons while volume/range and VIX add incremental QLIKE skill in stress regimes; ship an HTML research memo a PM could skim.
+> For liquid US ETFs (SPY, QQQ, IWM), screen which feature families predict next-5-day realized volatility; show HAR vs regularized models with block-bootstrap inference; ask whether the VIX IV−RV gap and `vix_as_forecast` help vs HAR (Implied vs realized); ship an HTML research memo a PM could skim.
 
 ---
 

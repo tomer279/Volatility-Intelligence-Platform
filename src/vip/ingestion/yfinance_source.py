@@ -20,6 +20,7 @@ from vip.ingestion.validators import validate_and_normalize_ohlcv
 
 YAHOO_TICKER_ALIASES: dict[str, str] = {
     "VIX": "^VIX",
+    "TNX": "^TNX",
 }
 
 

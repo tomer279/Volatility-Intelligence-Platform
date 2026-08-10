@@ -32,7 +32,7 @@ It should remain a thin interface layer that delegates work to application/use-c
 - `screen-horizons` command - Multi-horizon study (`--symbol`, `--horizons`, `--with`, `--skip-features`).
 - `screen_multi_horizon_command(app)` - Command registrar.
 - `run` command - One-shot ingest → features → screen (`--symbol` or `--symbols`, `--with`, skip flags).
-- `parse_feature_extras(raw)` - Parse `--with` tokens (`vix`, `jump`) into `FeatureMatrixExtras`.
+- `parse_feature_extras(raw)` - Parse `--with` tokens (`vix`, `jump`, `iv_rv`, `rates`) into `FeatureMatrixExtras`.
 - `run_command(app)` - Command registrar.
 
 ## Dependencies
@@ -47,6 +47,10 @@ From an installed editable environment:
 - `vip ingest --symbol SPY --start 2018-01-01 --end 2024-12-31`
 - `vip features --symbol SPY`
 - `vip features --symbol SPY --with vix,jump`
+- `vip features --symbol SPY --with vix,iv_rv`
+- `vip features --symbol SPY --with iv_rv`
+- `vip features --symbol SPY --with rates`
+- `vip features --symbol SPY --with vix,iv_rv,rates`
 - `vip evaluate --help`
 - `vip evaluate --symbol SPY`
 - `vip evaluate --symbol SPY --n-splits 5 --embargo 5`
@@ -56,13 +60,17 @@ From an installed editable environment:
 - `vip screen-horizons --help`
 - `vip screen-horizons --symbol SPY --with vix`
 - `vip screen-horizons --symbol SPY --with vix,jump`
+- `vip screen-horizons --symbol SPY --with vix,iv_rv`
 - `vip screen-horizons --symbol SPY --horizons 1,5,21 --skip-features`
 - `vip screen-batch --symbols SPY,QQQ,IWM`
 - `vip screen-batch --symbols SPY,QQQ --skip-ingest --skip-features`
 - `vip run --symbol SPY --with vix`
+- `vip run --symbol SPY --with vix,iv_rv`
 - `vip run --symbols SPY,QQQ --with vix`
 - `vip run --symbol SPY --with vix,jump`
+- `vip run --symbol SPY --with vix,iv_rv,rates`
 - `vip run --symbol SPY --skip-ingest --skip-features`
+
 
 ## Notes
 - Keep commands composable and explicit.
@@ -74,9 +82,17 @@ From an installed editable environment:
   + ranked factors, and writes artifacts under `data/artifacts/` including `oos_losses.json`,
   `inference.json`, optional `inference_sensitivity.json`, and `report.html`.
 - Delegate business logic to application modules to preserve testability.
-- `--with` accepts comma-separated tokens `vix` and/or `jump` (see `feature_extras.parse_feature_extras`).
-- `run` orchestrates ingest (including VIX when `--with` contains `vix`), features, and screening; prints report paths under `data/artifacts/`.
-- `screen-horizons` rebuilds features per horizon unless `--skip-features`; writes
-  `data/artifacts/multi-horizon-screen-{symbol}-{date}/` including `horizon_summary.json`
-  and study-level `report.html`. `vip screen` remains the single-horizon entrypoint (default h=5).
-  
+- `--with` accepts comma-separated tokens `vix`, `jump`, `iv_rv`, and/or `rates`.
+  Token `iv_rv` implies VIX load; token `rates` requires TNX in the market store
+  (`vip ingest --symbol TNX`, or `vip run` auto-ingests when `rates` is set).
+- `run` orchestrates ingest (VIX when `--with` contains `vix` or `iv_rv`;
+  TNX when `--with` contains `rates`), features, and screening; prints report
+  paths under `data/artifacts/`.
+- `run` / `screen-batch` always rebuild `data/processed/{SYMBOL}/features.parquet`
+  unless `--skip-features`. After `vip screen-horizons`, that file holds the
+  **last** horizon’s target; omit `--skip-features` (or run `vip features `
+  `--horizon …` ) before a default h=5 screen. `--with` extras apply only when
+  features are rebuilt.
+- `screen` has no `--with`; it screens the matrix already in `data/processed/`.
+  Rebuild with `vip features --with vix,iv_rv` (or `vip run --with vix,iv_rv`)
+  before expecting IV−RV columns / gap importance.

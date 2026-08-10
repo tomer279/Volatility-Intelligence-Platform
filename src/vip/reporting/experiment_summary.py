@@ -12,13 +12,17 @@ ReportIdentity
     Header identity fields for a factor-screen memo.
 ReportTables
     Tabular sections for a factor-screen memo.
+ImpliedVsRealizedSection
+    Context for the HTML “Implied vs realized” memo block.
 ReportExtras
-    Non-tabular extras for a factor-screen memo.
+    Non-tabular extras for a factor-screen memo (image, caveats, Implied section).
 FactorScreenReportContext
     Render-ready context for the factor-screen report.
 format_oos_gap_wording
     Locked comparison text gated on primary bootstrap significance.
-build_factor_screen_context
+build_implied_vs_realized_section
+    Derive IV-model row + optional gap-feature rows from screen tables.
+build_factor_screen_contextןצפךןקגהדרקשך
     Assemble a report context from payload, plot path, and meta.
 MultiHorizonReportMeta
     Study-level methodology fields for multi-horizon memos.
@@ -77,7 +81,19 @@ DEFAULT_NW_LAGS = 4
 DEFAULT_BOOTSTRAP_BLOCK_LENGTH = 15
 DEFAULT_ALPHA = 0.05
 DEFAULT_BOOTSTRAP_N_RESAMPLES = 1999
-
+VIX_AS_FORECAST_MODEL = "vix_as_forecast"
+IV_RV_GAP_FEATURE_PREFIX = "vix_minus_rv_"
+DEFAULT_TOP_IV_RV_GAP_FEATURES = 3
+VIX_PROXY_CAVEAT = (
+    "VIX is used as an IV proxy for index/ETF research; it is not "
+    "single-name implied volatility and is not a variance-swap or "
+    "options-replication identity."
+)
+VIX_UNIT_CONVERSION_NOTE = (
+    "Unit conversion (locked): "
+    "vix_vol_daily = (vix_level / 100.0) / sqrt(252), "
+    "putting VIX on the same non-annualized daily-vol scale as rv_cc_*."
+)
 
 @dataclass(frozen=True, slots=True)
 class InferenceReportMeta:
@@ -346,6 +362,44 @@ class ReportTables:
 
 
 @dataclass(frozen=True, slots=True)
+class ImpliedVsRealizedSection:
+    """Inputs for the HTML “Implied vs realized” section.
+
+    Parameters
+    ----------
+    proxy_caveat : str
+        VIX-as-IV-proxy research caveat.
+    unit_conversion_note : str
+        Locked ``vix_vol_daily`` formula note.
+    vix_forecast_row : dict of str to object or None
+        Horse-race row for ``vix_as_forecast`` (with ``comparison_note``),
+        or ``None`` when the model was not screened.
+    gap_feature_rows : tuple of dict
+        Top IV−RV gap features from the ranking (may be empty).
+
+    Methods
+    -------
+    has_vix_forecast()
+        Return whether a VIX-as-forecast horse-race row is present.
+    gap_feature_count()
+        Return the number of gap-feature rows.
+    """
+
+    proxy_caveat: str
+    unit_conversion_note: str
+    vix_forecast_row: dict[str, object] | None
+    gap_feature_rows: tuple[dict[str, object], ...]
+
+    def has_vix_forecast(self) -> bool:
+        """Return whether a VIX-as-forecast horse-race row is present."""
+        return self.vix_forecast_row is not None
+
+    def gap_feature_count(self) -> int:
+        """Return the number of gap-feature rows."""
+        return int(len(self.gap_feature_rows))
+
+
+@dataclass(frozen=True, slots=True)
 class ReportExtras:
     """Non-tabular extras for a factor-screen memo.
 
@@ -355,6 +409,8 @@ class ReportExtras:
         Base64-encoded PNG bytes, if available.
     caveats : tuple of str
         Research caveats shown in the memo.
+    implied_vs_realized : ImpliedVsRealizedSection or None
+        Optional Implied vs realized section inputs.
 
     Methods
     -------
@@ -366,6 +422,7 @@ class ReportExtras:
 
     importance_image_base64: str | None
     caveats: tuple[str, ...]
+    implied_vs_realized: ImpliedVsRealizedSection | None = None
 
     def has_image(self) -> bool:
         """Return whether an importance image is present.
@@ -401,7 +458,7 @@ class FactorScreenReportContext:
     tables : ReportTables
         Model horse-race, factor ranking, and regime-best rows.
     extras : ReportExtras
-        Importance image and caveats.
+        Importance image, caveats, and Implied vs realized section inputs.
 
     Methods
     -------
@@ -444,6 +501,25 @@ class FactorScreenReportContext:
                 "bootstrap_n_resamples": self.methodology.inference.bootstrap_n_resamples,
             }
         )
+        implied = self.extras.implied_vs_realized
+        if implied is not None:
+            payload.update(
+                {
+                    "implied_proxy_caveat": implied.proxy_caveat,
+                    "implied_unit_conversion_note": implied.unit_conversion_note,
+                    "vix_forecast_row": implied.vix_forecast_row,
+                    "iv_rv_gap_rows": list(implied.gap_feature_rows),
+                }
+            )
+        else:
+            payload.update(
+                {
+                    "implied_proxy_caveat": VIX_PROXY_CAVEAT,
+                    "implied_unit_conversion_note": VIX_UNIT_CONVERSION_NOTE,
+                    "vix_forecast_row": None,
+                    "iv_rv_gap_rows": [],
+                }
+            )
         return payload
 
     def describe(self) -> str:
@@ -733,9 +809,9 @@ def format_oos_gap_wording(row: dict[str, object]) -> str:
 
 
 def build_factor_screen_context(
-    payload: ScreenReportPayload,
-    plot_path: Path | None,
-    meta: ReportMeta,
+        payload: ScreenReportPayload,
+        plot_path: Path | None,
+        meta: ReportMeta,
 ) -> FactorScreenReportContext:
     """Assemble a report context from payload, plot path, and meta.
 
@@ -760,6 +836,9 @@ def build_factor_screen_context(
     """
     meta.validate()
     regime_best_rows = _best_model_by_regime_rows(payload.regime_metrics)
+    model_rows = _model_rows_with_wording(payload.summary)
+    factor_rows = _frame_records(payload.ranking)
+    implied = build_implied_vs_realized_section(model_rows, factor_rows)
     return FactorScreenReportContext(
         identity=ReportIdentity(
             symbol=payload.symbol,
@@ -769,15 +848,71 @@ def build_factor_screen_context(
         ),
         methodology=meta,
         tables=ReportTables(
-            model_rows=_model_rows_with_wording(payload.summary),
-            factor_rows=_frame_records(payload.ranking),
+            model_rows=model_rows,
+            factor_rows=factor_rows,
             regime_best_rows=regime_best_rows,
         ),
         extras=ReportExtras(
             importance_image_base64=_encode_png(plot_path),
             caveats=DEFAULT_CAVEATS,
+            implied_vs_realized=implied,
         ),
     )
+
+
+def build_implied_vs_realized_section(
+        model_rows: list[dict[str, object]],
+        factor_rows: list[dict[str, object]],
+) -> ImpliedVsRealizedSection:
+    """Derive Implied vs realized inputs from horse-race and ranking rows.
+
+    Parameters
+    ----------
+    model_rows : list of dict
+        Horse-race rows after ``format_oos_gap_wording``.
+    factor_rows : list of dict
+        Factor-ranking rows (already importance-ordered).
+
+    Returns
+    -------
+    ImpliedVsRealizedSection
+        Section context; ``vix_forecast_row`` may be ``None``.
+    """
+    forecast_row = _find_model_row(model_rows, VIX_AS_FORECAST_MODEL)
+    gap_rows = _top_iv_rv_gap_feature_rows(
+        factor_rows,
+        DEFAULT_TOP_IV_RV_GAP_FEATURES,
+    )
+    return ImpliedVsRealizedSection(
+        proxy_caveat=VIX_PROXY_CAVEAT,
+        unit_conversion_note=VIX_UNIT_CONVERSION_NOTE,
+        vix_forecast_row=forecast_row,
+        gap_feature_rows=tuple(gap_rows),
+    )
+
+
+def _find_model_row(
+        model_rows: list[dict[str, object]],
+        model_name: str,
+) -> dict[str, object] | None:
+    """Return the first horse-race row matching ``model_name``, else None."""
+    for row in model_rows:
+        if str(row.get("model", "")) == model_name:
+            return row
+    return None
+
+
+def _top_iv_rv_gap_feature_rows(
+        factor_rows: list[dict[str, object]],
+        limit: int,
+) -> list[dict[str, object]]:
+    """Keep ranking rows whose feature name starts with ``vix_minus_rv_``."""
+    matched = [
+        row
+        for row in factor_rows
+        if str(row.get("feature", "")).startswith(IV_RV_GAP_FEATURE_PREFIX)
+    ]
+    return matched[:limit]
 
 
 def _frame_records(frame: pd.DataFrame) -> list[dict[str, object]]:

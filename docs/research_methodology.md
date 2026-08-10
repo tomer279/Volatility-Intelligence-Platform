@@ -1,6 +1,6 @@
 # Research Methodology
 
-This document describes the quantitative methodology used across milestones 1–8
+This document describes the quantitative methodology used across milestones 1–9
 of the Volatility Intelligence Platform.  It is written for a technically
 literate reader (quant analyst, PM, or researcher) and references the locked
 defaults from `plan.md`.
@@ -88,7 +88,7 @@ observation on date *t*, the most recent prior value is used.
 
 VIX features are enabled with ``--with vix`` (or ``--with vix,jump``).
 They are associative (contemporaneously correlated with equity vol), not
-causal — see §10.
+causal — see §10. For IV−RV gaps and implied-as-forecast, see §2.7 and §12.
 
 
 ### 2.6  Jump-robust daily proxies (Milestone 8 stretch)
@@ -122,6 +122,66 @@ already exist). Core default families remain returns, har, range, volume
 Trailing bipower **levels** are not exported as predictors (they are nearly
 collinear with `rv_cc_*` and can inflate permutation ΔQLIKE). BPV is still
 used internally to define jump proportion.
+
+
+### 2.7  IV−RV gap family (Milestone 9)
+
+| Column | Description |
+| ------ | ----------- |
+| `vix_vol_daily` | Locked daily-vol scale of as-of VIX (see conversion below) |
+| `vix_minus_rv_1d` / `5d` / `21d` | `vix_vol_daily − rv_cc_{w}d` at HAR windows |
+| `vix_rv_ratio_5d` | `vix_vol_daily / rv_cc_5d` (NaN when `rv_cc_5d` ≤ 0) |
+
+**IV proxy.** For liquid index ETFs (flagship SPY), **VIX is the IV proxy**.
+VIX is a market-wide implied-vol index, **not** single-name implied volatility
+for an individual equity. Do not narrate results as “option IV for SPY” in the
+options-surface sense.
+
+**Locked unit conversion.** Platform trailing RV (`rv_cc_*`) is
+**non-annualized** close-to-close vol over the trailing window. VIX prints are
+conventionally **annualized percent** (e.g. `20` ≈ 20%). All gap features and
+`vix_as_forecast` use one conversion:
+
+```text
+vix_vol_daily = (vix_level / 100) / sqrt(252)
+```
+
+Gaps:
+
+```text
+vix_minus_rv_{w}d = vix_vol_daily − rv_cc_{w}d
+```
+
+for `w ∈ {1, 5, 21}`. This is a **research proxy** that places both series on
+the same daily-vol scale as the target family. It is **not** a variance-swap
+replication, options-pricing identity, or claim about fair variance.
+
+**Enablement.** Gaps are opt-in behind CLI ``--with iv_rv`` (implies VIX load)
+or `FeatureMatrixExtras(include_iv_rv=True)`. Bare ``--with vix`` still adds only
+`vix_level` / `vix_chg_1d`. Builders use as-of VIX (≤ *t*) and trailing
+`rv_cc_*` ending at *t*; they do not read `target_rv_cc_*`.
+
+### 2.8  Rates / Treasury yield proxy (Milestone 9 stretch)
+
+Optional cross-asset covariates behind CLI ``--with rates``. Storage symbol
+``TNX`` maps to Yahoo ``^TNX`` (10Y yield proxy). No new market-data vendor.
+
+| Column | Description |
+| ------ | ----------- |
+| `tnx_level` | TNX close (yield percent) as-of session *t* |
+| `tnx_chg_1d` | TNX close pct-change as-of *t* (computed on the TNX calendar, then asof-joined) |
+
+**Alignment.** Same backward ``merge_asof`` discipline as VIX: information set
+≤ *t* only. Leakage tests mirror the VIX as-of contract.
+
+**Not a vol conversion.** Yield is used as a **level/change covariate**. Do
+**not** apply the VIX daily-vol formula
+``(level / 100) / sqrt(252)`` to TNX. Rates are not an IV proxy and are not
+folded into ``vix_as_forecast``.
+
+**Enablement.** ``vip features --with rates`` / ``FeatureMatrixExtras(include_rates=True)``
+after ``vip ingest --symbol TNX`` (or ``vip run --with rates``, which auto-ingests
+TNX). Combinable with other tokens, e.g. ``--with vix,iv_rv,rates``.
 
 ---
 
@@ -180,6 +240,19 @@ OLS regression of `target_rv_cc_5d` on the three HAR trailing RV features
 (`rv_cc_1d`, `rv_cc_5d`, `rv_cc_21d`).  No intercept scaling; fit per fold.
 
 **Success criterion (M3):** HAR-RV OLS beats historical mean on QLIKE.
+
+### 5.4  VIX as forecast (`vix_as_forecast`, Milestone 9)
+
+Univariate **intercept OLS** of the forward-RV target on `vix_vol_daily`
+(derived from `vix_level` via the locked conversion when `vix_vol_daily` is
+absent). Predictions floored at `1e-8`. Same fit/predict surface as other
+horse-race models.
+
+**Role.** Competing **forecast** of forward RV — not a factor model on the
+IV−RV gap vector. Gap columns (`vix_minus_rv_*`) are screened as **features**
+(Ridge / Lasso / permutation importance). Keep those research questions
+separate in the memo (§12).
+
 
 ---
 
@@ -444,7 +517,56 @@ the multi-horizon memo. Flagship ``vip screen-horizons --with jump``
 ``jump`` from ``--with`` for the default core (+ optional VIX-only) study.
 
 
-## 12  Caveats
+## 12  Implied vs realized (Milestone 9)
+
+Milestone 9 asks whether implied vol (via VIX) helps forecast forward RV
+**as a feature**, **as a model**, or both, under the same walk-forward and
+M7 inference contract as the rest of the platform. The Milestone 9 stretch
+``rates`` family (``tnx_level`` / ``tnx_chg_1d``; §2.8) is an optional
+screening covariate only — it is **not** part of the Implied vs realized
+model claim.
+
+### 12.1  Two separable questions
+
+| Question | Mechanism | Where it appears |
+| -------- | --------- | ---------------- |
+| Does the **IV−RV gap** add predictive information? | Gap columns in the feature matrix; Ridge primary screen + permutation importance | Factor ranking; HTML “Top IV−RV gap features” when present |
+| Can a **VIX-based forecast** compete with HAR? | Model `vix_as_forecast` in the horse-race vs baseline `har_rv_ols` | `metrics.json` / `inference.json`; HTML “VIX as competing forecast” |
+
+Do **not** fold the full gap vector into `vix_as_forecast`. Do **not** claim
+“implied beats realized” from a point QLIKE ranking alone.
+
+### 12.2  Horse-race and inference
+
+Catalog (when VIX predictors exist): `har_rv_ols`, `ridge`, `lasso`,
+`vix_as_forecast`. If the matrix lacks `vix_vol_daily` and `vix_level`,
+`vix_as_forecast` is omitted. Primary inference remains **moving block
+bootstrap** of mean OOS ΔQLIKE vs `har_rv_ols` (M7/M8 defaults for h=5).
+Optional HLN–DM stays secondary.
+
+### 12.3  Report wording (unchanged from M7)
+
+- “**Significantly** lower mean OOS QLIKE vs HAR” **only** when the **primary
+  bootstrap** rejects at α (default 0.05) **and** mean ΔQLIKE &lt; 0
+- Otherwise: lower / higher mean OOS QLIKE vs HAR (not significant at α)
+- HTML section **Implied vs realized** restates the VIX proxy caveat, locked
+  conversion, IV-model row, and optional top `vix_minus_rv_*` importance rows
+
+### 12.4  CLI flagship extras
+
+```text
+--with vix          → vix_level, vix_chg_1d only
+--with iv_rv        → implies VIX + IV−RV gap family
+--with vix,iv_rv    → same as iv_rv for VIX load; gaps enabled
+--with rates        → tnx_level, tnx_chg_1d (requires TNX ingest)
+--with vix,iv_rv,rates → VIX + gaps + rates covariates
+```
+
+`vip screen` loads the existing processed matrix (no `--with`). Rebuild with
+`vip features ... --with vix,iv_rv` / `--with rates` / `--with vix,iv_rv,rates`,
+or the matching `vip run --with ...` form.
+
+## 13  Caveats
 
 1. **No causal claims.**  All importance measures (permutation ΔQLIKE, SHAP) are
   associative.  A high-ranked feature predicts well; it does not *cause*
@@ -474,3 +596,10 @@ the multi-horizon memo. Flagship ``vip screen-horizons --with jump``
    h−1); i.i.d. day bootstrap understates dependence.
 10. **Daily bipower ≠ tick bipower.** Jump-family columns are daily proxies for
     research screening only; they are not substitutes for high-frequency RV.
+11. **VIX ≠ single-name IV.** Index VIX is a research proxy for ETF studies;
+    it is not firm-level implied vol and not variance-swap replication (§2.7, §12).
+12. **Feature vs model.** Gap importance and `vix_as_forecast` ΔQLIKE answer
+    different questions; do not collapse them into one “IV beats RV” claim.
+13. **Rates ≠ implied.** ``tnx_*`` covariates (§2.8) are yield level/change
+    features for screening; they are not an IV proxy and do not enter
+    ``vix_as_forecast``.

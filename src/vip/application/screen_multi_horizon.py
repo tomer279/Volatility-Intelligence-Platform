@@ -27,6 +27,7 @@ import pandas as pd
 from vip.application.build_feature_matrix import (
     FeatureMatrixExtras,
     build_and_persist_feature_matrix,
+    require_cached_feature_target,
 )
 from vip.application.screen_factors import (
     DEFAULT_BASELINE_MODEL,
@@ -171,10 +172,9 @@ class MultiHorizonScreenConfig:
         Instrument to screen.
     horizons : tuple of int
         Forecast horizons in trading days (default locked ``1, 5, 21``).
-    with_vix : bool
-        When True, join VIX features during feature builds.
-    with_jump_features : bool
-        When True, include the daily jump-robust feature family.
+    feature_extras : FeatureMatrixExtras
+        Optional VIX / jump / IV−RV settings for feature builds.
+        ``include_iv_rv`` implies VIX load (see ``FeatureMatrixExtras``).
     skip_features : bool
         When True, require an existing matrix with the per-horizon target.
     screen_config : ScreenConfig
@@ -193,13 +193,14 @@ class MultiHorizonScreenConfig:
 
     symbol: Symbol
     horizons: tuple[int, ...] = LOCKED_SCREEN_HORIZONS
-    with_vix: bool = False
+    feature_extras: FeatureMatrixExtras = field(
+        default_factory=FeatureMatrixExtras
+    )
     skip_features: bool = False
     screen_config: ScreenConfig = field(default_factory=ScreenConfig)
     inference: MultiHorizonInferenceOverrides = field(
         default_factory=MultiHorizonInferenceOverrides
     )
-    with_jump_features: bool = False
 
     def validate(self) -> None:
         """Raise ``DataValidationError`` when configuration is invalid."""
@@ -219,8 +220,7 @@ class MultiHorizonScreenConfig:
         joined = ",".join(str(h) for h in self.horizons)
         return (
             f"symbol={self.symbol.value}, horizons=[{joined}], "
-            f"with_vix={self.with_vix}, "
-            f"with_jump_features={self.with_jump_features}, "
+            f"extras=({self.feature_extras.describe()}), "
             f"skip_features={self.skip_features}"
         )
 
@@ -351,29 +351,23 @@ def _ensure_features_for_horizon(
         horizon_days: int,
 ) -> None:
     """Build or validate the feature matrix for one horizon."""
-    target = target_column_for_horizon(horizon_days)
     if config.skip_features:
-        if not stores.feature_store.exists(config.symbol):
-            raise PersistenceError(
-                f"Missing feature matrix for {config.symbol.value}, "
-                "but skip_features was set."
-            )
-        matrix = stores.feature_store.load(config.symbol)
-        if target not in matrix.columns:
-            raise PersistenceError(
-                f"Feature matrix missing target column '{target}'."
-            )
+        require_cached_feature_target(
+            feature_store=stores.feature_store,
+            symbol=config.symbol,
+            horizon_days=horizon_days,
+        )
         return
 
+    # Shared store key: data/processed/{SYMBOL}/features.parquet.
+    # Each horizon overwrite leaves only target_rv_cc_{h}d for that h;
+    # vip run / screen-batch rebuild for their horizon unless --skip-features.
     build_and_persist_feature_matrix(
         market_store=stores.market_store,
         feature_store=stores.feature_store,
         symbol=config.symbol,
         horizon_days=horizon_days,
-        extras=FeatureMatrixExtras(
-            include_vix=config.with_vix,
-            include_jump=config.with_jump_features,
-        ),
+        extras=config.feature_extras,
     )
 
 
@@ -468,14 +462,17 @@ def _write_study_artifacts(
         if per_horizon_meta
         else DEFAULT_BASELINE_MODEL
     )
+    extras = config.feature_extras
     meta_payload = {
         "symbol": config.symbol.value,
         "study_id": study_id.value,
         "horizons": list(config.horizons),
         "baseline_model": baseline,
         "alpha": alpha,
-        "with_vix": config.with_vix,
-        "with_jump_features": config.with_jump_features,
+        "with_vix": extras.include_vix or extras.include_iv_rv,
+        "with_jump_features": extras.include_jump,
+        "with_iv_rv_features": extras.include_iv_rv,
+        "with_rates_features": extras.include_rates,
         "per_horizon": per_horizon_meta,
     }
     _write_json(study_dir / "screen_meta.json", meta_payload)

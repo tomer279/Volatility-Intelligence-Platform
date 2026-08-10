@@ -8,6 +8,8 @@ EwmaModel
     Frozen end-of-train EWMA forecast.
 HarRvOlsModel
     HAR-RV OLS baseline.
+VixAsForecastModel
+    Intercept OLS on daily VIX vol (registry name ``vix_as_forecast``).
 ScaledLinearModel
     Scaled scikit-learn linear adapter.
 RidgeModel
@@ -28,7 +30,12 @@ create_default_model_registry
     Build the default model registry.
 """
 
-from vip.modeling.baselines import EwmaModel, HarRvOlsModel, HistoricalMeanModel
+from vip.modeling.baselines import (
+    EwmaModel,
+    HarRvOlsModel,
+    HistoricalMeanModel,
+    VixAsForecastModel,
+)
 from vip.modeling.registry import (
     ModelRegistry,
     ModelSpec,
@@ -47,6 +54,7 @@ __all__ = [
     "EwmaModel",
     "HarRvOlsModel",
     "HistoricalMeanModel",
+    "VixAsForecastModel",
     "LassoModel",
     "ModelRegistry",
     "ModelSpec",

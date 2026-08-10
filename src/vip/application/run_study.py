@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from vip.application.build_feature_matrix import (
     FeatureMatrixExtras,
     build_and_persist_feature_matrix,
+    require_cached_feature_target,
 )
 from vip.application.ingest_market_data import ingest_market_data
 from vip.application.screen_batch import (
@@ -40,6 +41,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_HORIZON_DAYS = 5
 VIX_SYMBOL = Symbol("VIX")
+TNX_SYMBOL = Symbol("TNX")
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,7 +61,8 @@ class RunStudyConfig:
     skip_ingest : bool
         When True, skip ingestion and require cached market data.
     skip_features : bool
-        When True, skip feature building and require cached matrices.
+        When True, skip feature building and require a cached matrix
+        that contains ``target_rv_cc_{horizon_days}d``.
     screen_config : ScreenConfig
         Walk-forward and importance settings forwarded to screening.
 
@@ -208,7 +211,7 @@ def _handle_ingestion(
         stores: RunStudyStores,
         config: RunStudyConfig,
 ) -> None:
-    """Ingest OHLCV for each symbol (and VIX when requested).
+    """Ingest OHLCV for each symbol (and VIX/TNX when requested).
 
     Parameters
     ----------
@@ -224,7 +227,7 @@ def _handle_ingestion(
     """
     if config.skip_ingest:
         _assert_market_data_exists(
-            stores, config.symbols, config.extras.include_vix,
+            stores, config.symbols, config.extras,
         )
         return
 
@@ -237,8 +240,7 @@ def _handle_ingestion(
                 symbol=symbol,
                 date_range=config.date_range,
             )
-
-    if config.extras.include_vix and not stores.has_market_data(VIX_SYMBOL):
+    if config.extras.needs_vix() and not stores.has_market_data(VIX_SYMBOL):
         logger.info("Ingesting %s (cross-asset)", VIX_SYMBOL.value)
         ingest_market_data(
             source=stores.source,
@@ -246,12 +248,20 @@ def _handle_ingestion(
             symbol=VIX_SYMBOL,
             date_range=config.date_range,
         )
+    if config.extras.needs_rates() and not stores.has_market_data(TNX_SYMBOL):
+        logger.info("Ingesting %s (cross-asset rates)", TNX_SYMBOL.value)
+        ingest_market_data(
+            source=stores.source,
+            store=stores.market_store,
+            symbol=TNX_SYMBOL,
+            date_range=config.date_range,
+        )
 
 
 def _assert_market_data_exists(
         stores: RunStudyStores,
         symbols: list[Symbol],
-        with_vix: bool,
+        extras: FeatureMatrixExtras,
 ) -> None:
     """Raise if any required market data is missing.
 
@@ -260,9 +270,9 @@ def _assert_market_data_exists(
     stores : RunStudyStores
         Persistence dependencies.
     symbols : list[Symbol]
-        Required instrument symbols.
-    with_vix : bool
-        When True, also require VIX data.
+        Required primary instrument symbols.
+    extras : FeatureMatrixExtras
+        Feature flags that may require auxiliary OHLCV (VIX / TNX).
 
     Raises
     ------
@@ -270,8 +280,10 @@ def _assert_market_data_exists(
         If data is missing for any required symbol.
     """
     required = list(symbols)
-    if with_vix:
+    if extras.needs_vix():
         required.append(VIX_SYMBOL)
+    if extras.needs_rates():
+        required.append(TNX_SYMBOL)
     for symbol in required:
         if not stores.has_market_data(symbol):
             raise PersistenceError(
@@ -295,30 +307,30 @@ def _handle_feature_builds(
     Raises
     ------
     PersistenceError
-        If ``skip_features`` is True and a feature matrix is missing.
+        If ``skip_features`` is True and a matrix or horizon target is missing.
     """
     if config.skip_features:
-        _assert_features_exist(stores, config.symbols)
+        _assert_features_exist(stores, config.symbols, config.horizon_days)
         return
 
     extras = config.extras
     for symbol in config.symbols:
-        if not stores.has_feature_matrix(symbol):
-            logger.info("Building features for %s", symbol.value)
-            build_and_persist_feature_matrix(
-                market_store=stores.market_store,
-                feature_store=stores.feature_store,
-                symbol=symbol,
-                horizon_days=config.horizon_days,
-                extras=extras,
-            )
+        logger.info("Building features for %s", symbol.value)
+        build_and_persist_feature_matrix(
+            market_store=stores.market_store,
+            feature_store=stores.feature_store,
+            symbol=symbol,
+            horizon_days=config.horizon_days,
+            extras=extras,
+        )
 
 
 def _assert_features_exist(
         stores: RunStudyStores,
         symbols: list[Symbol],
+        horizon_days: int,
 ) -> None:
-    """Raise if any feature matrix is missing.
+    """Raise if any feature matrix or horizon target is missing.
 
     Parameters
     ----------
@@ -326,18 +338,20 @@ def _assert_features_exist(
         Persistence dependencies.
     symbols : list[Symbol]
         Required instrument symbols.
+    horizon_days : int
+        Expected target horizon for ``target_rv_cc_{h}d``.
 
     Raises
     ------
     PersistenceError
-        If a feature matrix is missing for any symbol.
+        If a matrix is missing or lacks the expected target column.
     """
     for symbol in symbols:
-        if not stores.has_feature_matrix(symbol):
-            raise PersistenceError(
-                f"No feature matrix for {symbol.value} "
-                "and --skip-features is set."
-            )
+        require_cached_feature_target(
+            feature_store=stores.feature_store,
+            symbol=symbol,
+            horizon_days=horizon_days,
+        )
 
 
 def _run_screening(

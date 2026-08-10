@@ -61,7 +61,9 @@ def screen_multi_horizon_command(app: typer.Typer) -> None:
         with_features: str = typer.Option(
             "",
             "--with",
-            help="Comma-separated extras: vix, jump (e.g. vix,jump).",
+            help="Comma-separated extras: vix, jump, iv_rv, rates "
+            "(e.g. vix,iv_rv,rates). "
+            "Token iv_rv implies VIX. Token rates requires TNX ingest.",
         ),
         skip_features: bool = typer.Option(
             False,
@@ -82,8 +84,7 @@ def screen_multi_horizon_command(app: typer.Typer) -> None:
             config=MultiHorizonScreenConfig(
                 symbol=effective_symbol,
                 horizons=_parse_horizons(horizons),
-                with_vix=extras.include_vix,
-                with_jump_features=extras.include_jump,
+                feature_extras=extras,
                 skip_features=skip_features,
                 screen_config=ScreenConfig(),
             ),

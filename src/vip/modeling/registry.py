@@ -17,7 +17,13 @@ from dataclasses import dataclass
 from typing import Any
 
 from vip.domain.errors import DataValidationError
-from vip.modeling.baselines import EwmaModel, HarRvOlsModel, HistoricalMeanModel
+from vip.modeling.baselines import (
+    EwmaModel,
+    HarRvOlsModel,
+    HistoricalMeanModel,
+    VixAsForecastModel,
+)
+
 from vip.modeling.regularization import ElasticNetModel, LassoModel, RidgeModel
 from vip.modeling.tree_models import RandomForestVolModel
 
@@ -169,12 +175,13 @@ class ModelRegistry:
 
 
 def create_default_model_registry() -> ModelRegistry:
-    """Create a registry preloaded with Milestone 3/4 models.
+    """Create a registry preloaded with baseline, linear, and tree models.
 
     Returns
     -------
     ModelRegistry
-        Registry containing baselines and regularized linear models.
+        Registry containing baselines (incl. ``vix_as_forecast``),
+        regularized linear models, and random forest.
     """
     registry = ModelRegistry()
     registry.register(
@@ -196,6 +203,16 @@ def create_default_model_registry() -> ModelRegistry:
             name="har_rv_ols",
             factory=HarRvOlsModel,
             description="HAR-RV OLS on trailing RV feature columns.",
+        )
+    )
+    registry.register(
+        ModelSpec(
+            name="vix_as_forecast",
+            factory=VixAsForecastModel,
+            description=(
+                "Intercept OLS of target on daily VIX vol "
+                "(vix_vol_daily or derived from vix_level)."
+            ),
         )
     )
     registry.register(

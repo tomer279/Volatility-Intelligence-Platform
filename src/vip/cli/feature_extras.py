@@ -12,7 +12,7 @@ import typer
 
 from vip.application.build_feature_matrix import FeatureMatrixExtras
 
-_ALLOWED_TOKENS = frozenset({"vix", "jump"})
+_ALLOWED_TOKENS = frozenset({"vix", "jump", "iv_rv", "rates"})
 
 
 def parse_feature_extras(raw: str) -> FeatureMatrixExtras:
@@ -21,7 +21,9 @@ def parse_feature_extras(raw: str) -> FeatureMatrixExtras:
     Parameters
     ----------
     raw : str
-        Comma-separated tokens (``vix``, ``jump``). Empty means neither.
+        Comma-separated tokens (``vix``, ``jump``, ``iv_rv``, ``rates``).
+        Empty means none. Token ``iv_rv`` implies VIX load
+        (``include_vix=True``). Token ``rates`` loads TNX yield features.
 
     Returns
     -------
@@ -41,7 +43,10 @@ def parse_feature_extras(raw: str) -> FeatureMatrixExtras:
         raise typer.BadParameter(
             f"Unknown --with token(s): {bad}. Allowed: {allowed}."
         )
+    include_iv_rv = "iv_rv" in tokens
     return FeatureMatrixExtras(
-        include_vix="vix" in tokens,
+        include_vix=("vix" in tokens) or include_iv_rv,
         include_jump="jump" in tokens,
+        include_iv_rv=include_iv_rv,
+        include_rates="rates" in tokens,
     )

@@ -137,10 +137,10 @@ DatetimeIndex, no nulls, `high ≥ max(open, close, low)`, `volume ≥ 0`).
 callables.  `build_feature_matrix` orchestrates: validate → build features →
 optionally add VIX columns → build target → concatenate → drop NaN.
 
-**modeling** — Three baseline models (`HistoricalMean`, `EWMA`, `HarRvOls`),
-three regularised linear models (`Ridge`, `Lasso`, `ElasticNet` with per-fold
-`StandardScaler`), and `RandomForestVolModel`.  `ModelRegistry` maps names to
-`ModelSpec` objects.
+**modeling** — Baseline models (`HistoricalMean`, `EWMA`, `HarRvOls`,
+`VixAsForecast`), regularised linear models (`Ridge`, `Lasso`, `ElasticNet`
+with per-fold `StandardScaler`), and `RandomForestVolModel`.  `ModelRegistry`
+maps names to `ModelSpec` objects.
 
 **evaluation** — Metrics (`qlike`, `mse`, `mae`), expanding walk-forward fold
 generation with embargo, `run_walk_forward` execution, horse-race comparison via
@@ -153,12 +153,13 @@ manage a consistent matplotlib theme.
 
 **reporting** — Jinja2-based HTML report generation.  `build_factor_screen_context`
 assembles the template context (methodology, horse-race table, ranked factors,
-regime table, plot, caveats); `render_factor_screen_report` produces the HTML
-string; `write_html_report` saves it to disk.
+regime table, plot, caveats, Implied vs realized); `render_factor_screen_report`
+produces the HTML string; `write_html_report` saves it to disk.
 
 **application** — Thin use-case functions that compose lower layers:
 `ingest_market_data`, `build_and_persist_feature_matrix`, `run_baseline_experiment`,
-`screen_factors`.  Each returns a typed result dataclass.
+`screen_factors` (horse-race via `screen_horse_race`, persistence via
+`screen_factor_artifacts`).  Each returns a typed result dataclass.
 
 **cli** — Typer commands: `info`, `ingest`, `features`, `evaluate`, `screen`,
 `screen-batch`, `run`.  Each command parses arguments, calls an application

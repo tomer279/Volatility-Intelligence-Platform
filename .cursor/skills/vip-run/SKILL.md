@@ -52,7 +52,7 @@ Artifacts: `data/artifacts/multi-horizon-screen-spy-<date>/report.html` and `hor
 | No extras | omit `--with` |
 | Skip ingest / features | `--skip-ingest`, `--skip-features` |
 
-Allowed `--with` tokens only: `vix`, `jump` (comma-separated).
+Allowed `--with` tokens: `vix`, `jump`, `iv_rv`, `rates` (comma-separated).
 
 For walk-forward knobs (`n-splits`, `embargo`, etc.), use `vip screen` or `vip evaluate` — not `vip run`.
 

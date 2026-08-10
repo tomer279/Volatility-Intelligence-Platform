@@ -1,5 +1,9 @@
 """Registry for named feature builders.
 
+The ``iv_rv`` family is pipeline-composed (needs HAR + as-of VIX), not an
+OHLCV ``FeatureSpec``; enable via ``FeatureMatrixExtras.include_iv_rv`` /
+CLI ``--with iv_rv``.
+
 Exports
 -------
 FeatureSpec

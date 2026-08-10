@@ -42,7 +42,9 @@ def features_command(app: typer.Typer) -> None:
         with_features: str = typer.Option(
             "",
             "--with",
-            help="Comma-separated extras: vix, jump (e.g. vix,jump).",
+            help="Comma-separated extras: vix, jump, iv_rv, rates "
+            "(e.g. vix,iv_rv,rates). "
+            "Token iv_rv implies VIX. Token rates requires TNX ingest.",
         ),
     ) -> None:
         """Build and persist a feature matrix from ingested OHLCV data."""

@@ -29,11 +29,19 @@ FeatureRegistry
 create_default_registry
     Build a registry with Milestone 2 families; optional ``jump`` via
     ``include_jump=True``.
+build_iv_rv_features
+    Build ``vix_vol_daily`` and IV−RV gap columns (pipeline-composed).
+vix_level_to_daily_vol
+    Locked VIX percent → daily-vol conversion.
 build_feature_matrix
-    Build features and target, then drop incomplete rows.
+    Build features and target; optional VIX / IV−RV; then drop incomplete rows.
 """
 
 from vip.features.pipeline import build_feature_matrix
+from vip.features.iv_rv_features import (
+    build_iv_rv_features,
+    vix_level_to_daily_vol,
+)
 from vip.features.jump_features import build_jump_features
 from vip.features.realized import (
     realized_variance_trailing,
@@ -69,4 +77,6 @@ __all__ = [
     "bipower_variation_trailing",
     "bipower_volatility_trailing",
     "jump_proportion_trailing",
+    "build_iv_rv_features",
+    "vix_level_to_daily_vol",
 ]

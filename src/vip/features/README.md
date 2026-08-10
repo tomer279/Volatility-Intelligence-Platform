@@ -9,11 +9,12 @@ Build predictive features and realized-volatility targets from canonical daily O
 - `returns.py` - Return-based features.
 - `har.py` - HAR-style trailing RV features.
 - `jump_features.py` - Opt-in jump-robust daily feature family (M8 stretch).
+- `iv_rv_features.py` - Opt-in IV−RV gap family (VIX daily vol + gaps; pipeline-composed).
 - `range_features.py` - High/low range features.
 - `volume_features.py` - Volume z-score features.
 - `registry.py` - Named feature-family registry and default Milestone 2 set.
 - `pipeline.py` - End-to-end feature-matrix builder.
-- `cross_asset.py` - VIX level / 1d change joined onto the primary calendar.
+- `cross_asset.py` - VIX and TNX (rates) level / 1d change via backward asof join.
 
 ## Key APIs
 - `daily_log_returns(close)` - Daily log returns from close prices.
@@ -29,7 +30,11 @@ Build predictive features and realized-volatility targets from canonical daily O
 - `create_default_registry(include_jump=False)` - Core families; set `include_jump=True` for `jump`.
 - `FeatureRegistry.build_all(ohlcv, names=None)` - Assemble selected feature families.
 - `build_vix_features(primary_index, vix_ohlcv)` - `vix_level`, `vix_chg_1d` via backward asof join.
-- `build_feature_matrix(ohlcv, horizon_days=5, ..., vix_ohlcv=None)` - Features + target (+ optional VIX), NaNs dropped.
+- `build_rates_features(primary_index, rates_ohlcv)` - `tnx_level`, `tnx_chg_1d` via backward asof join.
+- `VixJoinOptions(vix_ohlcv=None, include_iv_rv=False, rates_ohlcv=None)` - optional VIX / IV−RV / rates joins.
+- `vix_level_to_daily_vol(vix_level)` - Locked `(vix_level / 100) / sqrt(252)`.
+- `build_iv_rv_features(har_frame, vix_level)` - `vix_vol_daily`, `vix_minus_rv_*`, `vix_rv_ratio_5d`.
+ `build_feature_matrix(ohlcv, horizon_days=5, ..., vix_ohlcv=None)` - Features + target (+ optional VIX / IV−RV / rates), NaNs dropped.
 
 ## Research contract
 - Features at session `t` use information with timestamp `<= t`.
@@ -56,6 +61,14 @@ Build predictive features and realized-volatility targets from canonical daily O
 | `volume_z_21d` | volume | `(volume_t - mean_21) / std_21` trailing window ending at `t` |
 | `vix_level` | cross_asset | VIX close as-of session `t` (backward `merge_asof`) |
 | `vix_chg_1d` | cross_asset | VIX close pct-change as-of `t` (computed on VIX calendar, then asof-joined) |
+| `vix_vol_daily` | iv_rv | `(vix_level / 100) / sqrt(252)` after as-of align |
+| `vix_minus_rv_1d` | iv_rv | `vix_vol_daily − rv_cc_1d` |
+| `vix_minus_rv_5d` | iv_rv | `vix_vol_daily − rv_cc_5d` |
+| `vix_minus_rv_21d` | iv_rv | `vix_vol_daily − rv_cc_21d` |
+| `vix_rv_ratio_5d` | iv_rv | `vix_vol_daily / rv_cc_5d` (NaN if `rv_cc_5d` ≤ 0) |
+| `tnx_level` | cross_asset (rates) | TNX close (yield %) as-of session `t` (backward `merge_asof`) |
+| `tnx_chg_1d` | cross_asset (rates) | TNX close pct-change as-of `t` (on TNX calendar, then asof-joined) |
+
 
 ## Notes
 - Source OHLCV should be valid daily bars; `build_feature_matrix` re-validates via ingestion validators.
@@ -69,3 +82,21 @@ Build predictive features and realized-volatility targets from canonical daily O
 - Jump estimators are **daily close-to-close proxies**, not high-frequency / tick bipower; see `docs/research_methodology.md` §2.6.
 - Bipower variation is computed internally for `jump_prop_*` only; `bpv_cc_*` level columns are **not** exported (they duplicate HAR `rv_cc_*` and destabilize permutation importance).
 - `--with jump` adds **3** columns (`jump_prop_1d/5d/21d`), not 6.
+- IV−RV family is opt-in: `vip features --with iv_rv` (implies VIX load),
+  `FeatureMatrixExtras(include_iv_rv=True)`, or
+  `VixJoinOptions(vix_ohlcv=..., include_iv_rv=True)` in the pipeline.
+- Bare `--with vix` adds only `vix_level` / `vix_chg_1d` (no gap columns).
+- `iv_rv` is pipeline-composed after HAR + as-of VIX; not an OHLCV `FeatureSpec`
+  in `create_default_registry`.
+- `--with iv_rv` adds **5** columns (`vix_vol_daily`, three gaps, `vix_rv_ratio_5d`)
+  plus the usual 2 VIX columns when VIX is joined.
+- IV−RV gaps are a **research proxy** (aligned daily-vol scale), not
+  variance-swap / options-replication identities; see
+  `docs/research_methodology.md` §2.7 and §12.
+- Gap columns feed Ridge/Lasso screening; the competing forecast model
+  `vix_as_forecast` uses `vix_vol_daily` / `vix_level` only (not the gap vector).
+- Rates family is opt-in: `vip features --with rates` after `vip ingest --symbol TNX`,
+  or `FeatureMatrixExtras(include_rates=True)`. Storage symbol `TNX` maps to Yahoo `^TNX`.
+- `--with rates` adds **2** columns (`tnx_level`, `tnx_chg_1d`). Yield is a **level/change
+  covariate**, not converted with the VIX daily-vol formula.
+- Rates may be combined with other tokens, e.g. `--with vix,iv_rv,rates`.

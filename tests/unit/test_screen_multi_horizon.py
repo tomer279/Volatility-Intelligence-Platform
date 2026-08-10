@@ -10,7 +10,10 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from vip.application.build_feature_matrix import BuildFeatureMatrixResult
+from vip.application.build_feature_matrix import (
+    BuildFeatureMatrixResult,
+    FeatureMatrixExtras
+)
 from vip.application.screen_factors import ScreenConfig, target_column_for_horizon
 from vip.application.screen_multi_horizon import (
     HORIZON_SUMMARY_COLUMNS,
@@ -100,6 +103,7 @@ def test_screen_multi_horizon_writes_summary_and_layout(
     symbol = Symbol("SPY")
     config = MultiHorizonScreenConfig(
         symbol=symbol,
+        feature_extras=FeatureMatrixExtras(include_vix = True),
         horizons=LOCKED_SCREEN_HORIZONS,
         skip_features=False,
         screen_config=ScreenConfig(

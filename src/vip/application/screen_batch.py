@@ -7,7 +7,7 @@ BatchScreenConfig
 BatchScreenResult
     Summary table plus per-symbol experiment identifiers.
 run_screen_batch
-    Loop over symbols and run ingest/features/screen with caching.
+    Loop over symbols and run ingest/features/screen; rebuild features unless skipped.
 """
 
 from __future__ import annotations
@@ -17,7 +17,10 @@ from datetime import date
 
 import pandas as pd
 
-from vip.application.build_feature_matrix import build_and_persist_feature_matrix
+from vip.application.build_feature_matrix import (
+    build_and_persist_feature_matrix,
+    require_cached_feature_target,
+)
 from vip.application.ingest_market_data import ingest_market_data
 from vip.application.screen_factors import (
     ScreenConfig,
@@ -43,7 +46,8 @@ class BatchScreenConfig:
     skip_ingest : bool
         When True, do not ingest missing market data.
     skip_features : bool
-        When True, do not build missing feature matrices.
+        When True, do not rebuild feature matrices; require
+        ``target_rv_cc_{horizon_days}d`` in the cached matrix.
     date_range : DateRange
         Ingest window (used only when ingestion is not skipped).
     horizon_days : int
@@ -202,22 +206,21 @@ def _ensure_caches_ready(
         )
 
     if config.skip_features:
-        if not feature_store.exists(symbol):
-            raise PersistenceError(
-                f"Missing feature matrix for {symbol.value}, "
-                "but --skip-features was set."
-            )
-        return
-
-    if not feature_store.exists(symbol):
-        if config.skip_ingest and not market_store.exists(symbol):
-            raise PersistenceError(
-                f"Missing market data for {symbol.value}, "
-                "but --skip-ingest was set."
-            )
-        build_and_persist_feature_matrix(
-            market_store=market_store,
+        require_cached_feature_target(
             feature_store=feature_store,
             symbol=symbol,
             horizon_days=config.horizon_days,
         )
+        return
+
+    if config.skip_ingest and not market_store.exists(symbol):
+        raise PersistenceError(
+            f"Missing market data for {symbol.value}, "
+            "but --skip-ingest was set."
+        )
+    build_and_persist_feature_matrix(
+        market_store=market_store,
+        feature_store=feature_store,
+        symbol=symbol,
+        horizon_days=config.horizon_days,
+    )

@@ -8,6 +8,8 @@ EwmaModel
     Frozen end-of-train EWMA level forecast.
 HarRvOlsModel
     OLS HAR-RV model on trailing RV feature columns.
+VixAsForecastModel
+    Intercept OLS of target on daily VIX vol (``vix_as_forecast``).
 """
 
 from __future__ import annotations
@@ -17,10 +19,16 @@ import pandas as pd
 import statsmodels.api as sm
 
 from vip.domain.errors import DataValidationError
+from vip.features.cross_asset import VIX_LEVEL_COLUMN
+from vip.features.iv_rv_features import (
+    VIX_VOL_DAILY_COLUMN,
+    vix_level_to_daily_vol,
+)
 
 DEFAULT_EWMA_LAMBDA = 0.94
 DEFAULT_PREDICTION_FLOOR = 1e-8
 HAR_FEATURE_COLUMNS: tuple[str, ...] = ("rv_cc_1d", "rv_cc_5d", "rv_cc_21d")
+VIX_AS_FORECAST_REGRESSOR = VIX_VOL_DAILY_COLUMN
 
 
 class HistoricalMeanModel:
@@ -28,7 +36,7 @@ class HistoricalMeanModel:
 
     Methods
     -------
-    fit(features, target)
+    fit(_features, target)
         Store the training-target mean.
     predict(features)
         Return a constant series aligned to ``features.index``.
@@ -38,12 +46,12 @@ class HistoricalMeanModel:
         """Initialize an unfitted historical-mean model."""
         self._mean: float | None = None
 
-    def fit(self, features: pd.DataFrame, target: pd.Series) -> HistoricalMeanModel:
+    def fit(self, _features: pd.DataFrame, target: pd.Series) -> HistoricalMeanModel:
         """Fit the model on training data.
 
         Parameters
         ----------
-        features : pandas.DataFrame
+        _features : pandas.DataFrame
             Training features (ignored by this baseline).
         target : pandas.Series
             Training realized-volatility target.
@@ -102,7 +110,7 @@ class EwmaModel:
 
     Methods
     -------
-    fit(features, target)
+    fit(_features, target)
         Compute the end-of-train EWMA level from ``target``.
     predict(features)
         Return that frozen level for all requested rows.
@@ -126,12 +134,12 @@ class EwmaModel:
         self._decay = decay
         self._level: float | None = None
 
-    def fit(self, features: pd.DataFrame, target: pd.Series) -> EwmaModel:
+    def fit(self, _features: pd.DataFrame, target: pd.Series) -> EwmaModel:
         """Fit the EWMA level on training targets.
 
         Parameters
         ----------
-        features : pandas.DataFrame
+        _features : pandas.DataFrame
             Training features (ignored by this baseline).
         target : pandas.Series
             Training realized-volatility target.
@@ -312,4 +320,149 @@ class HarRvOlsModel:
         """Return fitted parameters or raise if unfitted."""
         if self._params is None:
             raise DataValidationError("HarRvOlsModel must be fitted before predict.")
+        return self._params
+
+
+class VixAsForecastModel:
+    """Implied-as-forecast baseline: intercept OLS on daily VIX vol.
+
+    Uses ``vix_vol_daily`` when present; otherwise derives it from
+    ``vix_level`` via ``vix_level_to_daily_vol``. Same fit/predict surface
+    as other horse-race models.
+
+    Parameters
+    ----------
+    prediction_floor : float, default 1e-8
+        Lower bound applied to predictions.
+
+    Methods
+    -------
+    fit(features, target)
+        Fit intercept OLS of ``target`` on daily VIX vol.
+    predict(features)
+        Predict with fitted coefficients, floored at ``prediction_floor``.
+    """
+
+    def __init__(
+        self,
+        prediction_floor: float = DEFAULT_PREDICTION_FLOOR,
+    ) -> None:
+        """Initialize an unfitted VIX-as-forecast model.
+
+        Parameters
+        ----------
+        prediction_floor : float, default 1e-8
+            Minimum allowed prediction.
+
+        Raises
+        ------
+        DataValidationError
+            If ``prediction_floor`` is not positive.
+        """
+        if prediction_floor <= 0:
+            raise DataValidationError("prediction_floor must be positive.")
+        self._prediction_floor = prediction_floor
+        self._params: pd.Series | None = None
+
+    def fit(
+        self,
+        features: pd.DataFrame,
+        target: pd.Series,
+    ) -> VixAsForecastModel:
+        """Fit OLS of the target on daily VIX vol plus intercept.
+
+        Parameters
+        ----------
+        features : pandas.DataFrame
+            Training features with ``vix_vol_daily`` and/or ``vix_level``.
+        target : pandas.Series
+            Training realized-volatility target.
+
+        Returns
+        -------
+        VixAsForecastModel
+            Fitted model (``self``).
+
+        Raises
+        ------
+        DataValidationError
+            If the predictor cannot be resolved or training rows are empty.
+        """
+        design, clean_target = self._design_matrix(features, target)
+        result = sm.OLS(clean_target, design).fit()
+        self._params = result.params
+        return self
+
+    def predict(self, features: pd.DataFrame) -> pd.Series:
+        """Predict realized volatility from daily VIX vol.
+
+        Parameters
+        ----------
+        features : pandas.DataFrame
+            Feature rows with ``vix_vol_daily`` and/or ``vix_level``.
+
+        Returns
+        -------
+        pandas.Series
+            Predictions aligned to ``features.index``, floored at
+            ``prediction_floor``.
+
+        Raises
+        ------
+        DataValidationError
+            If the model is unfitted or the predictor cannot be resolved.
+        """
+        params = self._require_params()
+        predictor = self._resolve_predictor(features)
+        design = sm.add_constant(
+            predictor.to_frame(name=VIX_AS_FORECAST_REGRESSOR),
+            has_constant="add",
+        )
+        design = design.loc[:, params.index]
+        raw = design.to_numpy(dtype=float) @ params.to_numpy(dtype=float)
+        clipped = np.maximum(raw, self._prediction_floor)
+        return pd.Series(clipped, index=features.index, name="prediction")
+
+    def _resolve_predictor(self, features: pd.DataFrame) -> pd.Series:
+        """Return daily VIX vol from ``vix_vol_daily`` or ``vix_level``."""
+        if VIX_VOL_DAILY_COLUMN in features.columns:
+            return features[VIX_VOL_DAILY_COLUMN]
+        if VIX_LEVEL_COLUMN in features.columns:
+            return vix_level_to_daily_vol(features[VIX_LEVEL_COLUMN])
+        raise DataValidationError(
+            "VixAsForecastModel requires 'vix_vol_daily' or 'vix_level'."
+        )
+
+    def _design_matrix(
+        self,
+        features: pd.DataFrame,
+        target: pd.Series,
+    ) -> tuple[pd.DataFrame, pd.Series]:
+        """Build an aligned OLS design matrix and target vector."""
+        predictor = self._resolve_predictor(features)
+        frame = pd.DataFrame(
+            {
+                VIX_AS_FORECAST_REGRESSOR: predictor,
+                "target": target,
+            },
+            index=features.index,
+        )
+        clean = frame.dropna()
+        if clean.empty:
+            raise DataValidationError(
+                "No finite rows available to fit VixAsForecastModel."
+            )
+        clean_target = clean["target"]
+        design = sm.add_constant(
+            clean.loc[:, [VIX_AS_FORECAST_REGRESSOR]],
+            has_constant="add",
+        )
+        return design, clean_target
+
+    def _require_params(self) -> pd.Series:
+        """Return fitted parameters or raise if unfitted."""
+        if self._params is None:
+            raise DataValidationError(
+                "VixAsForecastModel must be fitted before predict."
+            )
         return self._params

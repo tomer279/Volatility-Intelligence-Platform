@@ -122,6 +122,84 @@
   </tbody>
 </table>
 
+<h2>Implied vs realized</h2>
+<p class="meta">{{ implied_proxy_caveat }}</p>
+<p class="meta">{{ implied_unit_conversion_note }}</p>
+<p class="meta">
+  Significance language matches the horse-race table:
+  “significantly lower mean OOS QLIKE vs HAR (bootstrap)” only when the
+  primary block bootstrap rejects at α and mean ΔQLIKE &lt; 0.
+</p>
+
+<h3>VIX as competing forecast</h3>
+{% if vix_forecast_row %}
+<table>
+  <thead>
+    <tr>
+      <th>model</th>
+      <th>qlike</th>
+      <th>mean ΔQLIKE</th>
+      <th>bootstrap CI</th>
+      <th>bootstrap p</th>
+      <th>vs HAR</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>{{ vix_forecast_row.model }}</td>
+      <td>{{ "%.6f"|format(vix_forecast_row.qlike) }}</td>
+      <td>
+        {% if vix_forecast_row.mean_delta_qlike is not none %}
+          {{ "%.6f"|format(vix_forecast_row.mean_delta_qlike) }}
+        {% else %}—{% endif %}
+      </td>
+      <td>
+        {% if vix_forecast_row.bootstrap_ci_low is not none
+              and vix_forecast_row.bootstrap_ci_high is not none %}
+          [{{ "%.6f"|format(vix_forecast_row.bootstrap_ci_low) }},
+           {{ "%.6f"|format(vix_forecast_row.bootstrap_ci_high) }}]
+        {% else %}—{% endif %}
+      </td>
+      <td>
+        {% if vix_forecast_row.bootstrap_pvalue is not none %}
+          {{ "%.4f"|format(vix_forecast_row.bootstrap_pvalue) }}
+        {% else %}—{% endif %}
+      </td>
+      <td>{{ vix_forecast_row.comparison_note }}</td>
+    </tr>
+  </tbody>
+</table>
+{% else %}
+<p class="meta">
+  <code>vix_as_forecast</code> was not in this horse-race (feature matrix
+  lacked <code>vix_vol_daily</code> / <code>vix_level</code>).
+</p>
+{% endif %}
+
+{% if iv_rv_gap_rows %}
+<h3>Top IV−RV gap features (permutation importance)</h3>
+<table>
+  <thead>
+    <tr>
+      <th>feature</th>
+      <th>median_importance</th>
+      <th>mean_importance</th>
+      <th>top_k_hit_rate</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in iv_rv_gap_rows %}
+    <tr>
+      <td>{{ row.feature }}</td>
+      <td>{{ "%.6f"|format(row.median_importance) }}</td>
+      <td>{{ "%.6f"|format(row.mean_importance) }}</td>
+      <td>{{ "%.3f"|format(row.top_k_hit_rate) }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
 <h2>What works when</h2>
 <table>
   <thead>

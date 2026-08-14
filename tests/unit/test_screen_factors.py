@@ -70,7 +70,10 @@ def test_screen_factors_persists_artifacts(tmp_path: Path) -> None:
     assert result.identity.screening_model == "ridge"
     assert result.top_feature() in set(result.tables.ranking["feature"])
     assert not result.tables.summary.empty
-    assert set(result.tables.summary["model"]) == {"har_rv_ols", "ridge", "lasso"}
+    assert set(result.tables.summary["model"]) == {
+        "har_rv_ols", "ridge", "lasso", "ou_rv", "ewma_recursive"
+    }
+
     for name in (
         "metrics.json",
         "folds.json",

@@ -25,16 +25,22 @@ def _payload() -> ScreenReportPayload:
     """Build a tiny screen payload for report tests."""
     summary = pd.DataFrame(
         {
-            "model": ["ridge", "vix_as_forecast", "har_rv_ols"],
-            "qlike": [0.11, 0.115, 0.12],
-            "mse": [0.01, 0.012, 0.02],
-            "mae": [0.05, 0.055, 0.06],
-            "mean_delta_qlike": [-0.01, -0.005, None],
-            "bootstrap_ci_low": [-0.02, -0.015, None],
-            "bootstrap_ci_high": [-0.005, 0.001, None],
-            "bootstrap_pvalue": [0.03, 0.12, None],
-            "significant_vs_baseline": [True, False, None],
-            "hln_pvalue": [0.04, 0.20, None],
+            "model": [
+                "ridge",
+                "vix_as_forecast",
+                "ou_rv",
+                "ewma_recursive",
+                "har_rv_ols",
+            ],
+            "qlike": [0.11, 0.115, 0.118, 0.119, 0.12],
+            "mse": [0.01, 0.012, 0.013, 0.014, 0.02],
+            "mae": [0.05, 0.055, 0.057, 0.058, 0.06],
+            "mean_delta_qlike": [-0.01, -0.005, 0.002, 0.003, None],
+            "bootstrap_ci_low": [-0.02, -0.015, -0.01, -0.008, None],
+            "bootstrap_ci_high": [-0.005, 0.001, 0.01, 0.012, None],
+            "bootstrap_pvalue": [0.03, 0.12, 0.40, 0.45, None],
+            "significant_vs_baseline": [True, False, False, False, None],
+            "hln_pvalue": [0.04, 0.20, 0.50, 0.55, None],
         }
     )
     ranking = pd.DataFrame(
@@ -90,11 +96,17 @@ def test_render_factor_screen_report_contains_sections() -> None:
         "block length=15",
         "Newey–West lags=4",
         "har_rv_ols",
-       "Implied vs realized",
-       "vix_as_forecast",
-       "vix_vol_daily = (vix_level / 100.0) / sqrt(252)",
-       "vix_minus_rv_5d",
-       "lower mean OOS QLIKE vs HAR (not significant at α)",
+        "Implied vs realized",
+        "vix_as_forecast",
+        "vix_vol_daily = (vix_level / 100.0) / sqrt(252)",
+        "vix_minus_rv_5d",
+        "lower mean OOS QLIKE vs HAR (not significant at α)",
+        "Parametric vs HAR",
+        "ou_rv",
+        "Discrete OU / AR(1) on log realized-vol target",
+        "freezes the end-of-train log state",
+        "not continuous-time SV",
+        "higher mean OOS QLIKE vs HAR (not significant at α)",
     ):
         assert snippet in html
 
@@ -179,3 +191,91 @@ def test_implied_section_absent_forecast_still_renders_heading() -> None:
     )
     assert "Implied vs realized" in html
     assert "lacked" in html.lower() or "not in this horse-race" in html
+
+
+def test_parametric_section_absent_ou_still_renders_heading() -> None:
+    """Section heading and caveats remain when parametric models are missing."""
+    payload = _payload()
+    summary = payload.summary.loc[
+        ~payload.summary["model"].isin(["ou_rv", "ewma_recursive"])
+    ]
+    slim = ScreenReportPayload(
+        symbol=payload.symbol,
+        experiment_id=payload.experiment_id,
+        screening_model=payload.screening_model,
+        summary=summary,
+        ranking=payload.ranking,
+        regime_metrics=payload.regime_metrics,
+    )
+    html = render_factor_screen_report(
+        build_factor_screen_context(slim, None, ReportMeta())
+    )
+    assert "Parametric vs HAR" in html
+    assert "Discrete OU / AR(1) on log realized-vol target" in html
+    assert "freezes the end-of-train log state" in html
+    assert "not in this horse-race" in html
+
+
+def test_build_parametric_vs_har_section_finds_ou_rv() -> None:
+    """Builder keeps ou_rv row and leaves stretch filter None."""
+    from vip.reporting.experiment_summary import (
+        build_parametric_vs_har_section,
+        format_oos_gap_wording,
+    )
+    rows = [
+        {
+            "model": "ou_rv",
+            "qlike": 0.118,
+            "mean_delta_qlike": 0.002,
+            "significant_vs_baseline": False,
+        },
+        {
+            "model": "har_rv_ols",
+            "qlike": 0.12,
+            "mean_delta_qlike": None,
+            "significant_vs_baseline": None,
+        },
+    ]
+    for row in rows:
+        row["comparison_note"] = format_oos_gap_wording(row)
+    section = build_parametric_vs_har_section(rows)
+    assert section.has_ou_rv()
+    assert not section.has_filter_model()
+    assert section.ou_rv_row is not None
+    assert section.ou_rv_row["model"] == "ou_rv"
+    assert "higher mean OOS QLIKE" in str(section.ou_rv_row["comparison_note"])
+    assert any("not continuous-time SV" in c for c in section.caveats)
+
+
+def test_build_parametric_vs_har_section_finds_ewma_recursive() -> None:
+    """Builder attaches stretch filter row when ewma_recursive is present."""
+    from vip.reporting.experiment_summary import (
+        build_parametric_vs_har_section,
+        format_oos_gap_wording,
+    )
+    rows = [
+        {
+            "model": "ou_rv",
+            "qlike": 0.118,
+            "mean_delta_qlike": 0.002,
+            "significant_vs_baseline": False,
+        },
+        {
+            "model": "ewma_recursive",
+            "qlike": 0.119,
+            "mean_delta_qlike": 0.003,
+            "significant_vs_baseline": False,
+        },
+        {
+            "model": "har_rv_ols",
+            "qlike": 0.12,
+            "mean_delta_qlike": None,
+            "significant_vs_baseline": None,
+        },
+    ]
+    for row in rows:
+        row["comparison_note"] = format_oos_gap_wording(row)
+    section = build_parametric_vs_har_section(rows)
+    assert section.has_filter_model()
+    assert section.filter_row is not None
+    assert section.filter_row["model"] == "ewma_recursive"

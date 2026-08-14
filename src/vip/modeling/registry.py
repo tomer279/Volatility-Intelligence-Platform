@@ -21,8 +21,10 @@ from vip.modeling.baselines import (
     EwmaModel,
     HarRvOlsModel,
     HistoricalMeanModel,
+    OuRvModel,
     VixAsForecastModel,
 )
+from vip.modeling.parametric import EwmaRecursiveModel
 
 from vip.modeling.regularization import ElasticNetModel, LassoModel, RidgeModel
 from vip.modeling.tree_models import RandomForestVolModel
@@ -180,8 +182,9 @@ def create_default_model_registry() -> ModelRegistry:
     Returns
     -------
     ModelRegistry
-        Registry containing baselines (incl. ``vix_as_forecast``),
-        regularized linear models, and random forest.
+        Registry containing baselines (incl. ``vix_as_forecast`` and
+        ``ou_rv``, ``ewma_recursive``), regularized linear models, and
+        random forest.
     """
     registry = ModelRegistry()
     registry.register(
@@ -212,6 +215,26 @@ def create_default_model_registry() -> ModelRegistry:
             description=(
                 "Intercept OLS of target on daily VIX vol "
                 "(vix_vol_daily or derived from vix_level)."
+            ),
+        )
+    )
+    registry.register(
+        ModelSpec(
+            name="ou_rv",
+            factory=OuRvModel,
+            description=(
+                "Frozen-origin discrete OU / AR(1) on log RV; "
+                "analytic h-step mean (default h=5)."
+            ),
+        )
+    )
+    registry.register(
+        ModelSpec(
+            name="ewma_recursive",
+            factory=EwmaRecursiveModel,
+            description=(
+                "Train-fit EWMA decay; recursive OOS updates via trailing RV "
+                "(distinct from frozen ewma)."
             ),
         )
     )

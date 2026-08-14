@@ -50,7 +50,7 @@ def _synthetic_matrix() -> pd.DataFrame:
     features["target_rv_cc_5d"] = target
     return features
 
-def _synthetic_ohlcv(n_rows: int = 80) -> pd.DataFrame:
+def _synthetic_ohlcv(n_rows: int = 240) -> pd.DataFrame:
     """Build synthetic canonical OHLCV for rebuild tests."""
     index = pd.bdate_range("2024-01-02", periods=n_rows)
     close = pd.Series(np.linspace(100.0, 140.0, n_rows), index=index)
@@ -66,7 +66,7 @@ def _synthetic_ohlcv(n_rows: int = 80) -> pd.DataFrame:
     )
 
 
-def _stale_21d_matrix(n_rows: int = 80) -> pd.DataFrame:
+def _stale_21d_matrix(n_rows: int = 240) -> pd.DataFrame:
     """Matrix that only has ``target_rv_cc_21d``."""
     index = pd.bdate_range("2024-01-02", periods=n_rows)
     return pd.DataFrame(

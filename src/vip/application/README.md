@@ -31,10 +31,13 @@ CLI commands should call these functions rather than embedding business logic.
 - `target_column_for_horizon(horizon_days)` - Returns ``target_rv_cc_{h}d``.
 - `settings_for_horizon(horizon_days)` - M8 defaults: ``embargo_size = h``, horizon-aware bootstrap block length/bounds, ``horizon_days`` for NW.
 - `ScreenArtifactContext` - Persist-time screen + inference settings for artifacts / `screen_meta`.
-- `HORSE_RACE_MODELS` / `VIX_AS_FORECAST_MODEL` / `HorseRaceOptions` /
+- `HORSE_RACE_MODELS` / `VIX_AS_FORECAST_MODEL` / `OU_RV_MODEL` /
+  `EWMA_RECURSIVE_MODEL` / `HorseRaceOptions` /
   `run_horse_race_with_inference` / `resolve_horse_race_models` - Horse-race catalog and runner
   (`screen_horse_race.py`); ``vix_as_forecast`` is omitted when the matrix lacks
-  ``vix_vol_daily`` / ``vix_level``.
+  ``vix_vol_daily`` / ``vix_level``. ``ou_rv`` and ``ewma_recursive`` are
+  always in the race; ``ou_rv`` ``horizon_days`` comes from
+  ``ScreenInferenceOptions`` (via ``summary_options.horizon_days``).
 - `persist_screen_artifacts(artifact_store, result, context)` - Write screen JSON, plots, and `report.html`
   (`screen_factor_artifacts.py`); called by `screen_factors`.
 - `run_screen_batch(source, market_store, feature_store, artifact_store, config)` - Loop symbols: ingest/features/screen.
@@ -121,8 +124,9 @@ Multi-horizon screen (`vip screen-horizons`):
 - Prefer dependency injection of source/store over constructing them inside the use-case.
 - Screen inference defaults: block bootstrap primary vs `har_rv_ols`; optional HLN–DM;
   optional non-overlapping horizon subsample footnote (`inference_sensitivity.json`).
-- Horse-race catalog includes `vix_as_forecast`; it races only when the feature matrix
-  has `vix_vol_daily` or `vix_level` (typical with `--with vix` / `iv_rv`).
+- Horse-race catalog includes `ou_rv` and `ewma_recursive` unconditionally
+  and `vix_as_forecast` only when the feature matrix has `vix_vol_daily`
+  or `vix_level` (typical with `--with vix` / `iv_rv`).
 - IV−RV gap columns appear only when the **persisted** matrix was built with
   `include_iv_rv=True`. `screen_factors` does not rebuild extras; rebuild via
   `build_and_persist_feature_matrix` / CLI `features` / `run` first.

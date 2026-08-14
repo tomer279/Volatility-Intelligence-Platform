@@ -200,6 +200,86 @@
 </table>
 {% endif %}
 
+<h2>Parametric vs HAR</h2>
+{% for caveat in parametric_caveats %}
+<p class="meta">{{ caveat }}</p>
+{% endfor %}
+<p class="meta">
+  Significance language matches the horse-race table:
+  “significantly lower mean OOS QLIKE vs HAR (bootstrap)” only when the
+  primary block bootstrap rejects at α and mean ΔQLIKE &lt; 0.
+</p>
+
+<h3>Parametric / filter forecasts</h3>
+{% if ou_rv_row or parametric_filter_row %}
+<table>
+  <thead>
+    <tr>
+      <th>model</th>
+      <th>qlike</th>
+      <th>mean ΔQLIKE</th>
+      <th>bootstrap CI</th>
+      <th>bootstrap p</th>
+      <th>vs HAR</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% if ou_rv_row %}
+    <tr>
+      <td>{{ ou_rv_row.model }}</td>
+      <td>{{ "%.6f"|format(ou_rv_row.qlike) }}</td>
+      <td>
+        {% if ou_rv_row.mean_delta_qlike is not none %}
+          {{ "%.6f"|format(ou_rv_row.mean_delta_qlike) }}
+        {% else %}—{% endif %}
+      </td>
+      <td>
+        {% if ou_rv_row.bootstrap_ci_low is not none
+              and ou_rv_row.bootstrap_ci_high is not none %}
+          [{{ "%.6f"|format(ou_rv_row.bootstrap_ci_low) }},
+           {{ "%.6f"|format(ou_rv_row.bootstrap_ci_high) }}]
+        {% else %}—{% endif %}
+      </td>
+      <td>
+        {% if ou_rv_row.bootstrap_pvalue is not none %}
+          {{ "%.4f"|format(ou_rv_row.bootstrap_pvalue) }}
+        {% else %}—{% endif %}
+      </td>
+      <td>{{ ou_rv_row.comparison_note }}</td>
+    </tr>
+    {% endif %}
+    {% if parametric_filter_row %}
+    <tr>
+      <td>{{ parametric_filter_row.model }}</td>
+      <td>{{ "%.6f"|format(parametric_filter_row.qlike) }}</td>
+      <td>
+        {% if parametric_filter_row.mean_delta_qlike is not none %}
+          {{ "%.6f"|format(parametric_filter_row.mean_delta_qlike) }}
+        {% else %}—{% endif %}
+      </td>
+      <td>
+        {% if parametric_filter_row.bootstrap_ci_low is not none
+              and parametric_filter_row.bootstrap_ci_high is not none %}
+          [{{ "%.6f"|format(parametric_filter_row.bootstrap_ci_low) }},
+           {{ "%.6f"|format(parametric_filter_row.bootstrap_ci_high) }}]
+        {% else %}—{% endif %}
+      </td>
+      <td>
+        {% if parametric_filter_row.bootstrap_pvalue is not none %}
+          {{ "%.4f"|format(parametric_filter_row.bootstrap_pvalue) }}
+        {% else %}—{% endif %}
+      </td>
+      <td>{{ parametric_filter_row.comparison_note }}</td>
+    </tr>
+    {% endif %}
+  </tbody>
+</table>
+{% else %}
+<p class="meta">
+  <code>ou_rv</code> was not in this horse-race summary.
+</p>
+{% endif %}
+
 <h2>What works when</h2>
 <table>
   <thead>

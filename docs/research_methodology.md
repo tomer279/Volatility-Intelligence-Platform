@@ -1,6 +1,6 @@
 # Research Methodology
 
-This document describes the quantitative methodology used across milestones 1–9
+This document describes the quantitative methodology used across milestones 1–10
 of the Volatility Intelligence Platform.  It is written for a technically
 literate reader (quant analyst, PM, or researcher) and references the locked
 defaults from `plan.md`.
@@ -41,6 +41,8 @@ NaN rows created by trailing windows are dropped before modelling.
 | `ret_5d` | Cumulative 5-day log return                     |
 
 
+
+
 ### 2.2  HAR trailing realized volatility
 
 
@@ -64,12 +66,16 @@ importance rankings (see §10 Caveats).
 | `range_5d_mean` | 5-day rolling mean of `range_1d` |
 
 
+
+
 ### 2.4  Volume
 
 
 | Column         | Description                      |
 | -------------- | -------------------------------- |
 | `volume_z_21d` | 21-day z-score of trading volume |
+
+
 
 
 ### 2.5  Cross-asset — VIX (Milestone 5)
@@ -86,21 +92,22 @@ primary symbol's trading calendar via a **backward as-of join**
 (`timestamp ≤ t`).  This guarantees no forward-fill leakage: if VIX has no
 observation on date *t*, the most recent prior value is used.
 
-VIX features are enabled with ``--with vix`` (or ``--with vix,jump``).
+VIX features are enabled with `--with vix` (or `--with vix,jump`).
 They are associative (contemporaneously correlated with equity vol), not
 causal — see §10. For IV−RV gaps and implied-as-forecast, see §2.7 and §12.
 
-
 ### 2.6  Jump-robust daily proxies (Milestone 8 stretch)
 
-| Column | Description |
-| ------ | ----------- |
+
+| Column                        | Description                                                         |
+| ----------------------------- | ------------------------------------------------------------------- |
 | `jump_prop_1d` / `5d` / `21d` | $\max(0, \mathrm{RV} - \mathrm{BPV}) / \mathrm{RV}$ (0 when RV = 0) |
+
 
 **Definition (daily proxy).** For close-to-close log returns $r_t$,
 
 $$
-\mathrm{BPV}_t(w) = \frac{\pi}{2} \sum |r_i||r_{i-1}|
+\mathrm{BPV}*t(w) = \frac{\pi}{2} \sum |r_i||r*{i-1}|
 $$
 
 over adjacent pairs inside the trailing window ending at $t$ (for $w \ge 2$,
@@ -112,32 +119,33 @@ the same window. Features are trailing only (information $\le t$).
 Barndorff–Nielsen–Shephard estimators from high-frequency / tick returns.
 Do not interpret magnitudes as true jump variation from intraday bipower.
 Enable via registry opt-in (`create_default_registry(include_jump=True)`),
-`FeatureMatrixExtras(include_jump=True)`, or CLI ``--with jump`` /
-``--with vix,jump`` on `vip features`, `vip run`, and `vip screen-horizons`
-(rebuilds matrices; ignored when ``--skip-features`` is set unless columns
+`FeatureMatrixExtras(include_jump=True)`, or CLI `--with jump` /
+`--with vix,jump` on `vip features`, `vip run`, and `vip screen-horizons`
+(rebuilds matrices; ignored when `--skip-features` is set unless columns
 already exist). Core default families remain returns, har, range, volume
 (+ optional VIX).
 
-**Screening contract.** Only `jump_prop_*` columns enter the feature matrix.
+**Screening contract.** Only `jump_prop_`* columns enter the feature matrix.
 Trailing bipower **levels** are not exported as predictors (they are nearly
 collinear with `rv_cc_*` and can inflate permutation ΔQLIKE). BPV is still
 used internally to define jump proportion.
 
-
 ### 2.7  IV−RV gap family (Milestone 9)
 
-| Column | Description |
-| ------ | ----------- |
-| `vix_vol_daily` | Locked daily-vol scale of as-of VIX (see conversion below) |
-| `vix_minus_rv_1d` / `5d` / `21d` | `vix_vol_daily − rv_cc_{w}d` at HAR windows |
-| `vix_rv_ratio_5d` | `vix_vol_daily / rv_cc_5d` (NaN when `rv_cc_5d` ≤ 0) |
+
+| Column                           | Description                                                |
+| -------------------------------- | ---------------------------------------------------------- |
+| `vix_vol_daily`                  | Locked daily-vol scale of as-of VIX (see conversion below) |
+| `vix_minus_rv_1d` / `5d` / `21d` | `vix_vol_daily − rv_cc_{w}d` at HAR windows                |
+| `vix_rv_ratio_5d`                | `vix_vol_daily / rv_cc_5d` (NaN when `rv_cc_5d` ≤ 0)       |
+
 
 **IV proxy.** For liquid index ETFs (flagship SPY), **VIX is the IV proxy**.
 VIX is a market-wide implied-vol index, **not** single-name implied volatility
 for an individual equity. Do not narrate results as “option IV for SPY” in the
 options-surface sense.
 
-**Locked unit conversion.** Platform trailing RV (`rv_cc_*`) is
+**Locked unit conversion.** Platform trailing RV (`rv_cc_`*) is
 **non-annualized** close-to-close vol over the trailing window. VIX prints are
 conventionally **annualized percent** (e.g. `20` ≈ 20%). All gap features and
 `vix_as_forecast` use one conversion:
@@ -156,43 +164,47 @@ for `w ∈ {1, 5, 21}`. This is a **research proxy** that places both series on
 the same daily-vol scale as the target family. It is **not** a variance-swap
 replication, options-pricing identity, or claim about fair variance.
 
-**Enablement.** Gaps are opt-in behind CLI ``--with iv_rv`` (implies VIX load)
-or `FeatureMatrixExtras(include_iv_rv=True)`. Bare ``--with vix`` still adds only
+**Enablement.** Gaps are opt-in behind CLI `--with iv_rv` (implies VIX load)
+or `FeatureMatrixExtras(include_iv_rv=True)`. Bare `--with vix` still adds only
 `vix_level` / `vix_chg_1d`. Builders use as-of VIX (≤ *t*) and trailing
-`rv_cc_*` ending at *t*; they do not read `target_rv_cc_*`.
+`rv_cc_*` ending at *t*; they do not read `target_rv_cc_`*.
 
 ### 2.8  Rates / Treasury yield proxy (Milestone 9 stretch)
 
-Optional cross-asset covariates behind CLI ``--with rates``. Storage symbol
-``TNX`` maps to Yahoo ``^TNX`` (10Y yield proxy). No new market-data vendor.
+Optional cross-asset covariates behind CLI `--with rates`. Storage symbol
+`TNX` maps to Yahoo `^TNX` (10Y yield proxy). No new market-data vendor.
 
-| Column | Description |
-| ------ | ----------- |
-| `tnx_level` | TNX close (yield percent) as-of session *t* |
+
+| Column       | Description                                                                     |
+| ------------ | ------------------------------------------------------------------------------- |
+| `tnx_level`  | TNX close (yield percent) as-of session *t*                                     |
 | `tnx_chg_1d` | TNX close pct-change as-of *t* (computed on the TNX calendar, then asof-joined) |
 
-**Alignment.** Same backward ``merge_asof`` discipline as VIX: information set
+
+**Alignment.** Same backward `merge_asof` discipline as VIX: information set
 ≤ *t* only. Leakage tests mirror the VIX as-of contract.
 
 **Not a vol conversion.** Yield is used as a **level/change covariate**. Do
 **not** apply the VIX daily-vol formula
-``(level / 100) / sqrt(252)`` to TNX. Rates are not an IV proxy and are not
-folded into ``vix_as_forecast``.
+`(level / 100) / sqrt(252)` to TNX. Rates are not an IV proxy and are not
+folded into `vix_as_forecast`.
 
-**Enablement.** ``vip features --with rates`` / ``FeatureMatrixExtras(include_rates=True)``
-after ``vip ingest --symbol TNX`` (or ``vip run --with rates``, which auto-ingests
-TNX). Combinable with other tokens, e.g. ``--with vix,iv_rv,rates``.
+**Enablement.** `vip features --with rates` / `FeatureMatrixExtras(include_rates=True)`
+after `vip ingest --symbol TNX` (or `vip run --with rates`, which auto-ingests
+TNX). Combinable with other tokens, e.g. `--with vix,iv_rv,rates`.
 
 ---
+
+
 
 ## 3  Primary Metric
 
 
-| Metric | Formula | Direction |
-| ------ | ------- | --------- |
+| Metric | Formula                     | Direction       |
+| ------ | --------------------------- | --------------- |
 | QLIKE  | `mean( log(ŷ²) + y² / ŷ² )` | Lower is better |
-| MSE    | `mean( (y - ŷ)² )` | Lower is better |
-| MAE    | `mean(abs(y - ŷ))` | Lower is better |
+| MSE    | `mean( (y - ŷ)² )`          | Lower is better |
+| MAE    | `mean(abs(y - ŷ))`          | Lower is better |
 
 
 QLIKE is the primary metric because it penalises proportional forecast errors
@@ -204,13 +216,15 @@ log-of-zero instability.
 
 ---
 
+
+
 ## 4  Walk-Forward Validation
 
 
-| Setting          | Value                                             |
-| ---------------- | ------------------------------------------------- |
-| Mode             | Expanding window                                  |
-| Number of splits | 5                                                 |
+| Setting          | Value                                                                                                  |
+| ---------------- | ------------------------------------------------------------------------------------------------------ |
+| Mode             | Expanding window                                                                                       |
+| Number of splits | 5                                                                                                      |
 | Embargo          | Default single-horizon path: 5 sessions. Multi-horizon (M8): `embargo_size = h` per horizon (see §11). |
 
 
@@ -219,6 +233,8 @@ the training fold only and applied to both train and test — never on the full
 sample.
 
 ---
+
+
 
 ## 5  Baselines (Milestone 3)
 
@@ -253,8 +269,22 @@ IV−RV gap vector. Gap columns (`vix_minus_rv_*`) are screened as **features**
 (Ridge / Lasso / permutation importance). Keep those research questions
 separate in the memo (§12).
 
+### 5.5  Discrete OU / AR(1) (`ou_rv`, Milestone 10)
+
+Univariate **frozen-origin** mean-reversion on **log** training target: fit
+discrete OU / AR(1) params on train only; emit the analytic h-step conditional
+mean, then `exp` and floor at `1e-8`. Feature columns are ignored for
+estimation (index alignment only). Always in the factor-screen horse-race
+(no VIX column gate). Default `horizon_days=5`; multi-horizon screens inject
+`h` via the model constructor.
+
+**Role.** Competing **parametric baseline** vs `har_rv_ols` — not a factor
+model and not continuous-time SV estimation. Full contract, physical-measure
+caveat, and “must beat HAR under bootstrap” rule: §13.
 
 ---
+
+
 
 ## 6  Regularised Linear Models (Milestone 4)
 
@@ -271,6 +301,8 @@ Predictions are floored at `1e-8`.  The horse-race comparison uses the same
 walk-forward folds as the baselines.
 
 ---
+
+
 
 ## 7  Tree Models (Milestone 5)
 
@@ -294,7 +326,11 @@ Because trees are unscaled, they receive the raw feature matrix — no
 
 ---
 
+
+
 ## 8  Factor Importance
+
+
 
 ### 8.1  Permutation importance (Milestone 4)
 
@@ -304,10 +340,10 @@ The primary screening model is **Ridge**.  For each walk-forward fold:
 2. For each feature column *j*, shuffle the column in the test set and re-score → QLIKE_shuffled.
 3. Importance = ΔQLIKE = QLIKE_shuffled − QLIKE_baseline.
 
-The model is **not** refit inside permutations.  An optional ``delta_cap``
+The model is **not** refit inside permutations.  An optional `delta_cap`
 truncates extreme per-shuffle ΔQLIKE values within a fold.  Factor screens
-default to ``delta_cap = 1.0`` (set ``importance_delta_cap=None`` on
-``ScreenConfig`` only for diagnostics).
+default to `delta_cap = 1.0` (set `importance_delta_cap=None` on
+`ScreenConfig` only for diagnostics).
 
 ### 8.2  Aggregation — median importance (Milestone 5)
 
@@ -335,6 +371,8 @@ SHAP is an optional dependency (`pip install -e ".[nonlinear]"`).
 
 ---
 
+
+
 ## 9  Regime-Sliced Evaluation (Milestone 5)
 
 
@@ -354,6 +392,8 @@ data range does not cover the COVID period), the regime row is reported with
 `n_obs = 0` and no metrics — the platform does not crash.
 
 ---
+
+
 
 ## 10  Statistical inference on OOS gaps (Milestone 7)
 
@@ -382,13 +422,15 @@ five fold-mean QLIKE values alone.
 
 ### 10.3  Primary inference — block bootstrap
 
-| Setting | Locked default |
-| --- | --- |
-| Method | Moving block bootstrap of `mean(d_t)` |
+
+| Setting      | Locked default                        |
+| ------------ | ------------------------------------- |
+| Method       | Moving block bootstrap of `mean(d_t)` |
 | Block length | 15 trading days (allowed range 10–20) |
-| Resamples | 1999 (999 acceptable in unit tests) |
-| α | 0.05 (two-sided percentile CI) |
-| Seed | 0 |
+| Resamples    | 1999 (999 acceptable in unit tests)   |
+| α            | 0.05 (two-sided percentile CI)        |
+| Seed         | 0                                     |
+
 
 For the legacy single-horizon screen (`h = 5`), the table above is the locked
 default. Multi-horizon studies use **horizon-aware** block lengths and ranges
@@ -406,14 +448,18 @@ Harvey–Leybourne–Newbold finite-sample correction:
 - NW lags = `horizon_days − 1` → **4** for the default 5-day target
 - Persist `dm_stat`, `hln_stat`, `hln_pvalue`, `nw_lags` as **secondary** columns
 - Do **not** claim “significantly better” from uncorrected DM, or from HLN–DM
-  alone when the bootstrap does not reject
+alone when the bootstrap does not reject
+
+
 
 ### 10.5  Report wording
 
 - “**Significantly** lower mean OOS QLIKE vs HAR” **only** when the **primary
-  bootstrap** rejects at α **and** mean ΔQLIKE &lt; 0
+bootstrap** rejects at α **and** mean ΔQLIKE < 0
 - Otherwise: “lower / higher mean OOS QLIKE vs HAR (not significant at α)”
 - Fold-mean horse-race tables without inference columns remain descriptive
+
+
 
 ### 10.6  Optional sensitivity (footnote)
 
@@ -431,7 +477,6 @@ a formal estimator; instead it (a) uses block bootstrap with length in 10–20,
 (b) locks NW lag to h−1, and (c) optionally reports the non-overlapping
 subsample footnote.
 
-
 ## 11  Multi-horizon evaluation (Milestone 8)
 
 Milestone 8 promotes forecast horizon from a single config knob to a
@@ -445,11 +490,13 @@ stays **5**.
 
 ### 11.1  Locked horizons and targets
 
-| Horizon `h` | Target column | Role |
-| ----------- | ------------- | ---- |
-| 1 | `target_rv_cc_1d` | Next-day forward close-to-close RV |
-| 5 | `target_rv_cc_5d` | Next-week (legacy primary) |
-| 21 | `target_rv_cc_21d` | Next-month (~21 trading days) |
+
+| Horizon `h` | Target column      | Role                               |
+| ----------- | ------------------ | ---------------------------------- |
+| 1           | `target_rv_cc_1d`  | Next-day forward close-to-close RV |
+| 5           | `target_rv_cc_5d`  | Next-week (legacy primary)         |
+| 21          | `target_rv_cc_21d` | Next-month (~21 trading days)      |
+
 
 For each `h`, features are built (or loaded) so the matrix carries
 `target_rv_cc_{h}d`. Predictors remain information set ≤ *t*. Walk-forward
@@ -462,47 +509,54 @@ Overlapping *h*-step labels induce dependence of order ~*h*. Defaults are
 centralized in `vip.evaluation.horizon_defaults` and applied via
 `settings_for_horizon(h)`:
 
-| Horizon `h` | `embargo_size` | `nw_lags` (= `h − 1`) | Default `bootstrap_block_length` | Allowed block range |
-| ----------- | -------------- | --------------------- | -------------------------------- | ------------------- |
-| 1 | 1 | 0 | **10** | 5–15 |
-| 5 | 5 | 4 | **15** | 10–20 (M7 unchanged) |
-| 21 | 21 | 20 | **21** | 15–42 |
+
+| Horizon `h` | `embargo_size` | `nw_lags` (= `h − 1`) | Default `bootstrap_block_length` | Allowed block range  |
+| ----------- | -------------- | --------------------- | -------------------------------- | -------------------- |
+| 1           | 1              | 0                     | **10**                           | 5–15                 |
+| 5           | 5              | 4                     | **15**                           | 10–20 (M7 unchanged) |
+| 21          | 21             | 20                    | **21**                           | 15–42                |
+
 
 - **Embargo = h** — train/test separation for label overlap; still **not** a
-  significance test (§10.1).
+significance test (§10.1).
 - **NW lags = h − 1** — including **0** when `h = 1` on the optional HLN–DM path.
 - **Block length** tracks horizon so `h = 21` is not forced into an
-  under-blocked ℓ=15; validation must use horizon-specific bounds (legacy
-  global [10, 20] alone would reject the h=21 default).
+under-blocked ℓ=15; validation must use horizon-specific bounds (legacy
+global [10, 20] alone would reject the h=21 default).
+
+
 
 ### 11.3  Per-horizon inference (M7 contract carries over)
 
 For each horizon separately:
 
-1. Run the horse-race (`har_rv_ols`, `ridge`, `lasso`, + `random_forest` when
-   in the screen) under expanding walk-forward with `embargo_size = h`.
+1. Run the horse-race (`har_rv_ols`, `ridge`, `lasso`, `ou_rv`, +
+  `vix_as_forecast` when VIX columns exist, + `random_forest` when in the
+   screen) under expanding walk-forward with `embargo_size = h`.
 2. Persist per-row OOS QLIKE losses.
-3. For each challenger vs baseline **`har_rv_ols`**, compute mean ΔQLIKE and
-   **moving block bootstrap** CI / p-value with the horizon’s default block
+3. For each challenger vs baseline `har_rv_ols`, compute mean ΔQLIKE and
+  **moving block bootstrap** CI / p-value with the horizon’s default block
    length (primary).
 4. Optionally report HLN–DM + Newey–West with `nw_lags = h − 1` (secondary).
 
 **Wording (unchanged from M7, applied per horizon):** claim
 “significantly better” / “significantly lower mean OOS QLIKE vs HAR” **only**
 when the **primary bootstrap** rejects at α (default 0.05) **and** mean
-ΔQLIKE &lt; 0. Point QLIKE rankings across horizons remain descriptive.
+ΔQLIKE < 0. Point QLIKE rankings across horizons remain descriptive.
 
 ### 11.4  Cross-horizon summary
 
 Study root (example):
 `data/artifacts/multi-horizon-screen-{symbol}-{date}/`.
 
-| Artifact | Role |
-| -------- | ---- |
-| `screen_meta.json` | Horizons; per-h embargo / NW / block length; models; α |
-| `h{h}d/` | Per-horizon screen artifacts (`metrics.json`, `oos_losses.json`, `inference.json`, …) |
+
+| Artifact               | Role                                                                                                               |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `screen_meta.json`     | Horizons; per-h embargo / NW / block length; models; α                                                             |
+| `h{h}d/`               | Per-horizon screen artifacts (`metrics.json`, `oos_losses.json`, `inference.json`, …)                              |
 | `horizon_summary.json` | Rows keyed by `(horizon_days, model)`: QLIKE / MSE / MAE, mean ΔQLIKE, bootstrap CI / p, `significant_vs_baseline` |
-| `report.html` | Study memo with **Skill by horizon** table + locked wording |
+| `report.html`          | Study memo with **Skill by horizon** table + locked wording                                                        |
+
 
 Do not mix unlabeled multi-horizon metrics in one table without a
 `horizon_days` key.
@@ -510,47 +564,50 @@ Do not mix unlabeled multi-horizon metrics in one table without a
 ### 11.5  Jump-robust features (stretch)
 
 When the `jump` registry family is enabled (§2.6), the matrix includes
-**daily jump-proportion** columns only (`jump_prop_*`), not high-frequency Barndorff–Nielsen–
+**daily jump-proportion** columns only (`jump_prop_`*), not high-frequency Barndorff–Nielsen–
 Shephard estimators. Do not narrate them as tick-based jump variation in
-the multi-horizon memo. Flagship ``vip screen-horizons --with jump``
-(or ``vix,jump``) includes the family when matrices are rebuilt. Omit
-``jump`` from ``--with`` for the default core (+ optional VIX-only) study.
-
+the multi-horizon memo. Flagship `vip screen-horizons --with jump`
+(or `vix,jump`) includes the family when matrices are rebuilt. Omit
+`jump` from `--with` for the default core (+ optional VIX-only) study.
 
 ## 12  Implied vs realized (Milestone 9)
 
 Milestone 9 asks whether implied vol (via VIX) helps forecast forward RV
 **as a feature**, **as a model**, or both, under the same walk-forward and
 M7 inference contract as the rest of the platform. The Milestone 9 stretch
-``rates`` family (``tnx_level`` / ``tnx_chg_1d``; §2.8) is an optional
+`rates` family (`tnx_level` / `tnx_chg_1d`; §2.8) is an optional
 screening covariate only — it is **not** part of the Implied vs realized
 model claim.
 
 ### 12.1  Two separable questions
 
-| Question | Mechanism | Where it appears |
-| -------- | --------- | ---------------- |
-| Does the **IV−RV gap** add predictive information? | Gap columns in the feature matrix; Ridge primary screen + permutation importance | Factor ranking; HTML “Top IV−RV gap features” when present |
-| Can a **VIX-based forecast** compete with HAR? | Model `vix_as_forecast` in the horse-race vs baseline `har_rv_ols` | `metrics.json` / `inference.json`; HTML “VIX as competing forecast” |
+
+| Question                                           | Mechanism                                                                        | Where it appears                                                    |
+| -------------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Does the **IV−RV gap** add predictive information? | Gap columns in the feature matrix; Ridge primary screen + permutation importance | Factor ranking; HTML “Top IV−RV gap features” when present          |
+| Can a **VIX-based forecast** compete with HAR?     | Model `vix_as_forecast` in the horse-race vs baseline `har_rv_ols`               | `metrics.json` / `inference.json`; HTML “VIX as competing forecast” |
+
 
 Do **not** fold the full gap vector into `vix_as_forecast`. Do **not** claim
 “implied beats realized” from a point QLIKE ranking alone.
 
 ### 12.2  Horse-race and inference
 
-Catalog (when VIX predictors exist): `har_rv_ols`, `ridge`, `lasso`,
-`vix_as_forecast`. If the matrix lacks `vix_vol_daily` and `vix_level`,
-`vix_as_forecast` is omitted. Primary inference remains **moving block
+Catalog (minimum): `har_rv_ols`, `ridge`, `lasso`, **`ou_rv`**. When VIX
+predictors exist, add `vix_as_forecast`; if the matrix lacks `vix_vol_daily`
+and `vix_level`, `vix_as_forecast` is omitted. Primary inference remains **moving block
 bootstrap** of mean OOS ΔQLIKE vs `har_rv_ols` (M7/M8 defaults for h=5).
 Optional HLN–DM stays secondary.
 
 ### 12.3  Report wording (unchanged from M7)
 
 - “**Significantly** lower mean OOS QLIKE vs HAR” **only** when the **primary
-  bootstrap** rejects at α (default 0.05) **and** mean ΔQLIKE &lt; 0
+bootstrap** rejects at α (default 0.05) **and** mean ΔQLIKE < 0
 - Otherwise: lower / higher mean OOS QLIKE vs HAR (not significant at α)
 - HTML section **Implied vs realized** restates the VIX proxy caveat, locked
-  conversion, IV-model row, and optional top `vix_minus_rv_*` importance rows
+conversion, IV-model row, and optional top `vix_minus_rv_*` importance rows
+
+
 
 ### 12.4  CLI flagship extras
 
@@ -566,7 +623,93 @@ Optional HLN–DM stays secondary.
 `vip features ... --with vix,iv_rv` / `--with rates` / `--with vix,iv_rv,rates`,
 or the matching `vip run --with ...` form.
 
-## 13  Caveats
+## 13  Parametric / filter baselines (Milestone 10)
+
+Milestone 10 asks whether a structurally different **univariate parametric**
+baseline can beat **HAR-RV OLS** on forward RV under the same walk-forward and
+M7 inference contract. The core model is `ou_rv` (discrete OU / AR(1) on log
+target). A recursive filter baseline (`ewma_recursive` / similar) is stretch
+only and must remain a distinct registry name from frozen `ewma`.
+
+This is a **physical-measure** forecasting exercise on the daily ETF spine —
+not continuous-time stochastic-vol estimation, Heston/MLE toolchains, or an
+options-pricing lab.
+
+### 13.1  Competing forecast: `ou_rv`
+
+
+| Setting            | Value                                                                                                                                     |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Registry name      | `ou_rv`                                                                                                                                   |
+| State              | x_t = \log y_t on strictly positive training target y_t                                                                                   |
+| Dynamics           | Discrete mean-reversion / AR(1): x_t = \theta + \varphi (x_{t-1} - \theta) + \varepsilon_t                                                |
+| Fit                | Train-only OLS of x_t on x_{t-1} (intercept form) → (\hat\theta, \hat\varphi); \hat\varphi clipped into (-1, 1) for stability when needed |
+| Origin state       | End-of-train log-target x_T (last finite train observation)                                                                               |
+| Forecast           | Analytic h-step mean → `exp` → floor                                                                                                      |
+| Prediction floor   | `1e-8`                                                                                                                                    |
+| Feature dependence | Univariate on target history in `fit`; `predict` may ignore feature columns except for index alignment                                    |
+| Horse-race gate    | **Always** eligible (unlike `vix_as_forecast`, which requires VIX columns)                                                                |
+| Horizon            | Constructor `horizon_days` (default 5; screens inject `h` for M8)                                                                         |
+| Min train obs      | Default 30 finite positive targets (typed error if insufficient)                                                                          |
+
+
+**h-step mapping (locked):**
+
+```text
+E[x_{T+h} | x_T] = θ + φ^h (x_T − θ)
+ŷ_{T+h} = max( exp(E[x_{T+h} | x_T]), prediction_floor )
+```
+
+**Frozen-origin MVP (core path):** fit (\hat\theta, \hat\varphi) on the train
+fold; freeze x_T; emit the **same** h-step mean for every row in the test
+block. This matches the frozen-`ewma` philosophy and avoids recursive use of
+test labels. Recursive OOS state updates are stretch-only and easy to leak;
+they are not the core contract.
+
+**Non-goals:** HAR lag columns inside OU; tree methods; Optuna; continuous SV
+MLE; GARCH package zoo as the milestone center.
+
+### 13.1b  Stretch filter: `ewma_recursive`
+
+| Setting     | Value                                                                              |
+| ----------- | ---------------------------------------------------------------------------------- |
+| Registry name | `ewma_recursive` (not `ewma`)                                                    |
+| Fit         | Grid-search λ on train target (1-step EWMA MSE); store end-of-train level          |
+| Predict     | Update state with trailing `rv_cc_1d` only; floor predictions                      |
+| Horse-race  | Always eligible; HTML Parametric vs HAR filter row                                 |
+
+Does not replace M7 bootstrap wording. Point QLIKE alone is not a finding.
+
+### 13.2  Horse-race and inference
+
+Catalog (minimum): `har_rv_ols`, `ridge`, `lasso`, `ou_rv`, `ewma_recursive`,
+plus `vix_as_forecast` when VIX predictors exist. Primary inference remains
+**moving block bootstrap** of mean OOS ΔQLIKE vs baseline `har_rv_ols`
+(M7/M8 defaults). Optional HLN–DM stays secondary.
+
+**Success rule (design principle):** parametric novelty without OOS skill is
+not a finding. `ou_rv` **must beat** `har_rv_ols` on OOS QLIKE **under the M7
+bootstrap gate** to matter as a research claim — point QLIKE rankings alone
+are descriptive.
+
+### 13.3  Report wording (unchanged from M7)
+
+- “**Significantly** lower mean OOS QLIKE vs HAR” **only** when the **primary
+bootstrap** rejects at α (default 0.05) **and** mean ΔQLIKE < 0
+- Otherwise: lower / higher mean OOS QLIKE vs HAR (not significant at α)
+- HTML section **Parametric vs HAR** restates: discrete OU (not continuous SV);
+log-state; frozen-origin MVP; physical measure; `ou_rv` ΔQLIKE / CI / p
+(optional stretch filter row when present)
+
+
+
+### 13.4  CLI
+
+No new core `--with` token — `ou_rv` and `ewma_recursive` are always in the
+race. A later stretch may add e.g. `rough` for rough-vol memory features;
+existing `vix` / `jump` / `iv_rv` / `rates` tokens are unchanged.
+
+## 14  Caveats
 
 1. **No causal claims.**  All importance measures (permutation ΔQLIKE, SHAP) are
   associative.  A high-ranked feature predicts well; it does not *cause*
@@ -586,20 +729,28 @@ or the matching `vip run --with ...` form.
    exogenous shocks.
 6. **QLIKE spike robustness.**  QLIKE is unbounded; a single extreme prediction
   can dominate fold-level importance.  The platform uses median aggregation and
-  a default ``delta_cap = 1.0`` on factor screens (override with ``None`` for diagnostics) to mitigate this.
+  a default `delta_cap = 1.0` on factor screens (override with `None` for diagnostics) to mitigate this.
 7. **Walk-forward assumptions.**  Expanding windows assume stationarity of the
   feature–target relationship.  Structural breaks (e.g. post-COVID liquidity
    regime) may violate this.
 8. **Inference vs ranking.** Horse-race QLIKE orderings without bootstrap
-   inference are descriptive, not findings.
+  inference are descriptive, not findings.
 9. **Overlap.** Overlapping RV labels require block bootstrap (and HAC lag
-   h−1); i.i.d. day bootstrap understates dependence.
+  h−1); i.i.d. day bootstrap understates dependence.
 10. **Daily bipower ≠ tick bipower.** Jump-family columns are daily proxies for
-    research screening only; they are not substitutes for high-frequency RV.
+  research screening only; they are not substitutes for high-frequency RV.
 11. **VIX ≠ single-name IV.** Index VIX is a research proxy for ETF studies;
-    it is not firm-level implied vol and not variance-swap replication (§2.7, §12).
+  it is not firm-level implied vol and not variance-swap replication (§2.7, §12).
 12. **Feature vs model.** Gap importance and `vix_as_forecast` ΔQLIKE answer
-    different questions; do not collapse them into one “IV beats RV” claim.
-13. **Rates ≠ implied.** ``tnx_*`` covariates (§2.8) are yield level/change
-    features for screening; they are not an IV proxy and do not enter
-    ``vix_as_forecast``.
+  different questions; do not collapse them into one “IV beats RV” claim.
+13. **Rates ≠ implied.** `tnx_`* covariates (§2.8) are yield level/change
+  features for screening; they are not an IV proxy and do not enter
+    `vix_as_forecast`.
+14. **Discrete OU ≠ continuous SV.** `ou_rv` is an AR(1)-on-log-RV baseline
+  under the physical measure with a frozen train origin (§13). Do not narrate
+    it as Heston/MLE diffusion estimation or a risk-neutral pricing filter.
+15. **Frozen-origin vs recursive filter.** Core `ou_rv` emits a constant
+  test-block forecast from end-of-train state. A stretch recursive filter
+    must be separately named and leakage-tested; it is not a silent change to
+    `ewma` or `ou_rv`.
+

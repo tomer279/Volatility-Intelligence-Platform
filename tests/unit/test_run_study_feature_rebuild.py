@@ -28,7 +28,7 @@ from vip.persistence.artifact_store import FilesystemArtifactStore
 from vip.persistence.feature_matrix_store import ParquetFeatureMatrixStore
 from vip.persistence.parquet_store import ParquetMarketDataStore
 
-_N_OHLCV_ROWS = 80
+_N_OHLCV_ROWS = 240
 _N_SPLITS = 2
 _N_REPEATS = 1
 _TOP_K = 1

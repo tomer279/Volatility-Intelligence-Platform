@@ -10,6 +10,8 @@ HarRvOlsModel
     OLS HAR-RV model on trailing RV feature columns.
 VixAsForecastModel
     Intercept OLS of target on daily VIX vol (``vix_as_forecast``).
+OuRvModel
+    Frozen-origin discrete OU / AR(1) on log training target.
 """
 
 from __future__ import annotations
@@ -27,6 +29,15 @@ from vip.features.iv_rv_features import (
 
 DEFAULT_EWMA_LAMBDA = 0.94
 DEFAULT_PREDICTION_FLOOR = 1e-8
+DEFAULT_OU_HORIZON_DAYS = 5
+DEFAULT_OU_MIN_OBS = 30
+MIN_OU_OBSERVATIONS = 3
+PHI_CLIP_LIMIT = 0.999
+LAG_SHIFT = 1
+FIRST_OBSERVATION = 0
+LAST_OBSERVATION = -1
+LAG_COLUMN = "x_lag"
+CONST_COLUMN = "const"
 HAR_FEATURE_COLUMNS: tuple[str, ...] = ("rv_cc_1d", "rv_cc_5d", "rv_cc_21d")
 VIX_AS_FORECAST_REGRESSOR = VIX_VOL_DAILY_COLUMN
 
@@ -466,3 +477,279 @@ class VixAsForecastModel:
                 "VixAsForecastModel must be fitted before predict."
             )
         return self._params
+
+
+class OuRvModel:
+    """Frozen-origin discrete OU / AR(1) baseline on log realized vol.
+
+    State is ``x_t = log(y_t)`` on strictly positive training targets.
+    Parameters ``(θ, φ)`` come from intercept OLS of ``x_t`` on ``x_{t-1}``.
+    ``predict`` emits the same h-step mean for every row (frozen ``x_T``).
+
+    Parameters
+    ----------
+    horizon_days : int, default 5
+        Forecast horizon ``h`` used in the analytic h-step mean.
+    prediction_floor : float, default 1e-8
+        Lower bound applied after ``exp`` of the log-mean.
+    min_obs : int, default 30
+        Minimum finite positive training observations (need ≥ 3 for AR(1)
+        with intercept).
+
+    Methods
+    -------
+    fit(features, target)
+        Estimate ``(θ, φ)`` on train-only log target and freeze ``x_T``.
+    predict(features)
+        Return the constant h-step forecast aligned to ``features.index``.
+    fitted_state()
+        Return ``(theta, phi, end_log_state)``.
+    horizon_days()
+        Return the forecast horizon ``h`` used in ``predict``.
+    """
+
+    def __init__(
+            self,
+            horizon_days: int = DEFAULT_OU_HORIZON_DAYS,
+            prediction_floor: float = DEFAULT_PREDICTION_FLOOR,
+            min_obs: int = DEFAULT_OU_MIN_OBS,
+    ) -> None:
+        """Initialize an unfitted discrete OU model.
+
+        Parameters
+        ----------
+        horizon_days : int, default 5
+            Forecast horizon ``h``.
+        prediction_floor : float, default 1e-8
+            Minimum allowed prediction.
+        min_obs : int, default 30
+            Minimum finite positive training observations.
+
+        Raises
+        ------
+        DataValidationError
+            If ``horizon_days`` < 1, ``prediction_floor`` is not positive,
+            or ``min_obs`` is below ``MIN_OU_OBSERVATIONS``.
+        """
+        if horizon_days < 1:
+            raise DataValidationError("horizon_days must be at least 1.")
+        if prediction_floor <= 0:
+            raise DataValidationError("prediction_floor must be positive.")
+        if min_obs < MIN_OU_OBSERVATIONS:
+            raise DataValidationError(
+                f"min_obs must be at least {MIN_OU_OBSERVATIONS}."
+            )
+        self._horizon_days = int(horizon_days)
+        self._prediction_floor = float(prediction_floor)
+        self._min_obs = int(min_obs)
+        self._theta: float | None = None
+        self._phi: float | None = None
+        self._end_log_state: float | None = None
+
+    def fit(self, features: pd.DataFrame, target: pd.Series) -> OuRvModel:
+        """Fit discrete OU parameters on training log-target only.
+
+        Feature columns are ignored. ``target`` is reindexed to
+        ``features.index`` so values off the train index are unused.
+
+        Parameters
+        ----------
+        features : pandas.DataFrame
+            Training rows; only the index is used.
+        target : pandas.Series
+            Training realized-volatility target.
+
+        Returns
+        -------
+        OuRvModel
+            Fitted model (``self``).
+
+        Raises
+        ------
+        DataValidationError
+            If the aligned target is empty, non-positive, or too short.
+        """
+        aligned = target.reindex(features.index)
+        log_state = _positive_log_state(aligned, self._min_obs)
+        theta, phi = _estimate_ou_ar1(log_state)
+        end_values = log_state.to_numpy(dtype=float, copy=True)
+        self._theta = theta
+        self._phi = phi
+        self._end_log_state = float(end_values[LAST_OBSERVATION])
+        return self
+
+    def predict(self, features: pd.DataFrame) -> pd.Series:
+        """Predict with the frozen h-step mean from end-of-train state.
+
+        Parameters
+        ----------
+        features : pandas.DataFrame
+            Feature rows to score (index alignment only).
+
+        Returns
+        -------
+        pandas.Series
+            Constant predictions aligned to ``features.index``, floored at
+            ``prediction_floor``.
+
+        Raises
+        ------
+        DataValidationError
+            If the model has not been fitted.
+        """
+        theta, phi, origin_log_state = self._require_fitted()
+        log_mean = _h_step_log_mean(
+            theta,
+            phi,
+            origin_log_state,
+            self._horizon_days,
+        )
+        yhat = max(float(np.exp(log_mean)), self._prediction_floor)
+        return pd.Series(yhat, index=features.index, name="prediction")
+
+    def fitted_state(self) -> tuple[float, float, float]:
+        """Return fitted ``(theta, phi, end_log_state)``.
+
+        Returns
+        -------
+        theta : float
+            Estimated long-run mean of log-state.
+        phi : float
+            Clipped AR(1) coefficient.
+        end_log_state : float
+            Last finite training log-target ``x_T``.
+
+        Raises
+        ------
+        DataValidationError
+            If the model has not been fitted.
+        """
+        return self._require_fitted()
+
+    def horizon_days(self) -> int:
+        """Return the forecast horizon ``h`` used in ``predict``.
+        Returns
+        -------
+        int
+            Horizon in trading days.
+        """
+        return self._horizon_days
+
+    def _require_fitted(self) -> tuple[float, float, float]:
+        """Return fitted OU state or raise if unfitted."""
+        if self._theta is None or self._phi is None or self._end_log_state is None:
+            raise DataValidationError("OuRvModel must be fitted before predict.")
+        return self._theta, self._phi, self._end_log_state
+
+
+def _positive_log_state(target: pd.Series, min_obs: int) -> pd.Series:
+    """Return log-state from strictly positive finite target values.
+
+    Parameters
+    ----------
+    target : pandas.Series
+        Training target already aligned to the feature index.
+    min_obs : int
+        Minimum number of finite positive observations.
+
+    Returns
+    -------
+    pandas.Series
+        ``log(y)`` on the finite positive subsample, in time order.
+
+    Raises
+    ------
+    DataValidationError
+        If the series is empty, or shorter than ``min_obs``.
+    """
+    values = target.to_numpy(dtype=float, copy=True)
+    finite_mask = np.isfinite(values)
+    finite_values = values[finite_mask]
+    if finite_values.size == 0:
+        raise DataValidationError("Training target must contain finite values.")
+    positive_mask = finite_values > 0.0
+    positive_values = finite_values[positive_mask]
+    if positive_values.size == 0:
+        raise DataValidationError(
+            "Training target must be strictly positive to form log-state."
+        )
+    if positive_values.size < min_obs:
+        raise DataValidationError(
+            f"OuRvModel requires at least {min_obs} finite positive training observations."
+        )
+    log_values = np.log(positive_values)
+    positive_index = target.index[finite_mask][positive_mask]
+    return pd.Series(
+        log_values,
+        index=positive_index,
+        name="log_target",
+    )
+
+
+def _estimate_ou_ar1(log_state: pd.Series) -> tuple[float, float]:
+    """Estimate discrete OU parameters via intercept OLS on lagged log-state.
+
+    Fits ``x_t = α + φ x_{t-1} + ε`` and maps to
+    ``θ = α / (1 - φ)`` with ``φ`` clipped to
+    ``[-PHI_CLIP_LIMIT, PHI_CLIP_LIMIT]`` so the h-step map stays stable.
+
+    Parameters
+    ----------
+    log_state : pandas.Series
+        Finite log training target in time order.
+
+    Returns
+    -------
+    theta : float
+        Estimated long-run mean of log-state.
+    phi : float
+        Clipped AR(1) coefficient.
+
+    Raises
+    ------
+    DataValidationError
+        If a lagged pair cannot be formed.
+    """
+    values = log_state.to_numpy(dtype=float, copy=True)
+    x_now = values[LAG_SHIFT:]
+    x_lag = values[:-LAG_SHIFT]
+    if x_now.size == 0:
+        raise DataValidationError(
+            "OuRvModel requires a lagged pair to fit discrete OU / AR(1)."
+        )
+    lag_frame = pd.DataFrame({LAG_COLUMN: x_lag})
+    design = sm.add_constant(lag_frame, has_constant="add")
+    result = sm.OLS(x_now, design).fit()
+    intercept = float(result.params[CONST_COLUMN])
+    phi_raw = float(result.params[LAG_COLUMN])
+    phi = float(np.clip(phi_raw, -PHI_CLIP_LIMIT, PHI_CLIP_LIMIT))
+    theta = intercept / (1.0 - phi)
+    return theta, phi
+
+
+def _h_step_log_mean(
+        theta: float,
+        phi: float,
+        origin_log_state: float,
+        horizon_days: int,
+) -> float:
+    """Return the analytic h-step conditional mean on log-state.
+
+    Parameters
+    ----------
+    theta : float
+        Long-run mean of log-state.
+    phi : float
+        AR(1) coefficient.
+    origin_log_state : float
+        Frozen origin state ``x_T``.
+    horizon_days : int
+        Forecast horizon ``h``.
+
+    Returns
+    -------
+    float
+        ``θ + φ^h (x_T − θ)``.
+    """
+    reversion = phi ** horizon_days
+    return theta + reversion * (origin_log_state - theta)

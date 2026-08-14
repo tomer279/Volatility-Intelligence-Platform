@@ -3,18 +3,75 @@
     "model": "lasso",
     "qlike": -6.22874604922422,
     "mse": 6.867225568920356e-05,
-    "mae": 0.0063858772445144684
+    "mae": 0.0063858772445144684,
+    "mean_delta_qlike": -0.04581945008950566,
+    "bootstrap_ci_low": -0.09547612386863591,
+    "bootstrap_ci_high": -0.00505491466368922,
+    "bootstrap_pvalue": 0.0475,
+    "significant_vs_baseline": true,
+    "dm_stat": -2.1649288694089273,
+    "hln_stat": -2.09996860392654,
+    "hln_pvalue": 0.03741664228449695,
+    "nw_lags": 4.0
   },
   {
     "model": "ridge",
     "qlike": -6.224242382692198,
     "mse": 7.094530158885973e-05,
-    "mae": 0.006400833608994115
+    "mae": 0.006400833608994115,
+    "mean_delta_qlike": -0.04131578355748319,
+    "bootstrap_ci_low": -0.0759062791335893,
+    "bootstrap_ci_high": -0.012827229040598931,
+    "bootstrap_pvalue": 0.0125,
+    "significant_vs_baseline": true,
+    "dm_stat": -2.2552718831567184,
+    "hln_stat": -2.187600809831883,
+    "hln_pvalue": 0.030257298621021986,
+    "nw_lags": 4.0
+  },
+  {
+    "model": "ou_rv",
+    "qlike": -6.211374442764873,
+    "mse": 7.021991150348993e-05,
+    "mae": 0.00648031758027106,
+    "mean_delta_qlike": -0.02844784363015864,
+    "bootstrap_ci_low": -0.08803376664246867,
+    "bootstrap_ci_high": 0.03357368067408283,
+    "bootstrap_pvalue": 0.366,
+    "significant_vs_baseline": false,
+    "dm_stat": -0.9754485328726268,
+    "hln_stat": -0.9461794901085977,
+    "hln_pvalue": 0.34558894604907553,
+    "nw_lags": 4.0
   },
   {
     "model": "har_rv_ols",
     "qlike": -6.1829265991347135,
     "mse": 7.661192683582918e-05,
-    "mae": 0.006794115798024871
+    "mae": 0.006794115798024871,
+    "mean_delta_qlike": null,
+    "bootstrap_ci_low": null,
+    "bootstrap_ci_high": null,
+    "bootstrap_pvalue": null,
+    "significant_vs_baseline": null,
+    "dm_stat": null,
+    "hln_stat": null,
+    "hln_pvalue": null,
+    "nw_lags": null
+  },
+  {
+    "model": "ewma_recursive",
+    "qlike": -0.5391960696346646,
+    "mse": 0.0003171199537387807,
+    "mae": 0.015369865254858079,
+    "mean_delta_qlike": 5.643730529500051,
+    "bootstrap_ci_low": 4.109024051365929,
+    "bootstrap_ci_high": 7.496598206346627,
+    "bootstrap_pvalue": 0.0005,
+    "significant_vs_baseline": false,
+    "dm_stat": 6.598284485812963,
+    "hln_stat": 6.400298160265116,
+    "hln_pvalue": 1.9021568658038326e-09,
+    "nw_lags": 4.0
   }
 ]

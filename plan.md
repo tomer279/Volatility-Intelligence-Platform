@@ -214,6 +214,9 @@ Package name `vip` keeps imports short (`from vip.features import ...`) while th
 
 - Research-grade charts (not dashboard candy): RV vs forecast, rolling skill, importance heatmaps  
 - HTML/Markdown experiment reports with config hash, data version, metrics table
+- HTML experiment reports for humans; compact `agent_card.json` as a
+  projection for agents (locked wording, caveats, pointers). Markdown
+  twin optional.
 
 ### Persistence / Config / Orchestration / CLI
 
@@ -601,6 +604,36 @@ parallel evaluation engine. Prefer batch / as-of research over live desks.
 - Event studies remain calendar-driven (earnings / FOMC) once a calendar source
   exists; the diary is the general mechanism those studies plug into
 
+**Interfaces / agent consumption (optional; not a research milestone)**
+
+HTML remains the human memo. Existing JSON dumps (`metrics.json`,
+`inference.json`, `horizon_summary.json`, `screen_meta.json`) remain the
+reproducibility record. Neither is the agent contract: HTML is token-heavy;
+the dumps are fragmented and omit locked comparison wording
+(`format_oos_gap_wording`), which is computed only on the HTML path today.
+
+When a real consumer exists (Cursor `vip-run`, a second agent, or HTTP),
+add a **projection** of the memo — do not invent a parallel evaluation stack:
+
+- Persist `agent_card.json` (optional short `agent_card.md`) beside
+  `report.html`: schema version, experiment identity, top-N horse-race
+  verdicts with locked `comparison_note`, caveats as data, pointers to
+  detail files. Omit `oos_losses.json` from the card.
+- Point CLI echo and `.cursor/skills/vip-run` at the card first, HTML
+  second.
+- Optional later: `GET /experiments/{id}/card` or an MCP resource — only
+  if an external pipeline needs HTTP. Local file first.
+- Optional `vip-qa-report` skill: PASS/FAIL on artifact completeness,
+  embargo = horizon, HAR baseline, wording vs bootstrap rule, optional
+  leakage tests. Structured findings, not a redesign of the study.
+- Orchestrator loop, if any: a few rounds; Run may fix *engineering*
+  failures (missing ingest / extras). Eval must not retune splits,
+  embargo, extras, or horizons to chase QLIKE / p-values.
+
+**Out of scope:** run ↔ eval agents that iterate until the forecast looks
+“optimal”; dumping full OOS panels into LLM context; treating HTML as the
+machine API; a new inference engine for agents.
+
 **Explicitly deferred (higher data/ops cost)**
 
 - Intraday / high-frequency RV
@@ -646,6 +679,10 @@ not single-name IV / surfaces)
 - M10 predict style: frozen end-of-train origin (MVP); recursive OOS = stretch
 - M10 horse-race: `ou_rv` always eligible; baseline remains `har_rv_ols`
 - M10 CLI: no new core `--with` token
+- Agent consumption: compact card is a projection of the HTML memo
+  (locked wording + caveats + top-N + pointers); not a second research
+  stack. Eval skill may QA artifacts; it must not search the hypothesis
+  space.
 
 ---
 
@@ -685,8 +722,10 @@ HAR; methodology §13; package docs. Stretch `ewma_recursive` shipped; rough-vol
 Granger–MI diagnostics deferred.
 
 Next: optional diagnostics / rough-vol if unfinished; broader cross-asset
-covariates; optional forecast-diary / as-of verification; keep HF RV, options
-surfaces, cross-section, scheduling deferred.
+covariates; optional forecast-diary / as-of verification; optional agent
+card + qa-report skill (interface polish, not a numbered research
+milestone); keep HF RV, options surfaces, cross-section, scheduling
+deferred.
 
 ## Suggested Flagship Demo Narrative
 

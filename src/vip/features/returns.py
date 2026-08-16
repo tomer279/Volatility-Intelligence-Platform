@@ -46,28 +46,3 @@ def build_return_features(ohlcv: pd.DataFrame) -> pd.DataFrame:
         },
         index=ohlcv.index,
     )
-
-
-def np_log_ratio(close: pd.Series, lag: int) -> pd.Series:
-    """Compute ``log(close_t / close_{t-lag})``.
-
-    Parameters
-    ----------
-    close : pandas.Series
-        Close-price series.
-    lag : int
-        Lookback in trading sessions.
-
-    Returns
-    -------
-    pandas.Series
-        Multi-day log return.
-    """
-    return np.log(close / close.shift(lag))
-
-
-def _require_close(ohlcv: pd.DataFrame) -> pd.Series:
-    """Return the close series or raise if missing."""
-    if CLOSE_COLUMN not in ohlcv.columns:
-        raise DataValidationError("OHLCV frame must contain a 'close' column.")
-    return ohlcv[CLOSE_COLUMN]
